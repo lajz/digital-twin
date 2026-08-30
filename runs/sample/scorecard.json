@@ -1,14 +1,14 @@
 {
-  "dataset": "synthetic-ecoli-fast",
-  "n_iters": 6,
-  "best_holdout_smape": 0.0600007853386662,
-  "iters_to_target": 2,
-  "distinct_plausible_families": 5,
-  "valid_rate": 0.8333333333333334,
-  "candidate_crash_rate": 0.0,
-  "improvement_auc": 0.7833326788844449,
-  "total_prompt_tokens": 21870,
-  "total_response_tokens": 11810,
-  "usd_cost": 0.011083800000000001,
-  "wall_s_total": 19.382005208637565
+  "dataset": "ipb-ecoli",
+  "n_iters": 10,
+  "best_holdout_smape": 0.01801210973070113,
+  "iters_to_target": 3,
+  "distinct_plausible_families": 9,
+  "valid_rate": 0.9,
+  "candidate_crash_rate": 0.1,
+  "improvement_auc": 0.8418795566158506,
+  "total_prompt_tokens": 36489,
+  "total_response_tokens": 18086,
+  "usd_cost": 0.017813040000000002,
+  "wall_s_total": 2.3574632927775383
 }

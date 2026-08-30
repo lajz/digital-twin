@@ -1,230 +1,309 @@
 {
-  "best_score": 0.0600007853386662,
-  "distinct_valid_families": 5,
+  "best_score": 0.01801210973070113,
+  "distinct_valid_families": 9,
   "portfolio": [
     {
-      "iteration": 2,
-      "family": "baranyi-robust-fixed",
-      "score": 0.0600007853386662,
+      "iteration": 6,
+      "family": "two-stage-lag-adaptation",
+      "score": 0.01801210973070113,
+      "is_valid": true,
+      "n_params": 5,
+      "metrics": {
+        "holdout_smape": 0.01801210973070113,
+        "holdout_mase": 2.926176347139386,
+        "holdout_log_rmse": 0.0201663104551202,
+        "fit_r2": 0.9953661890720652,
+        "fit_log_rmse": 0.022357013437270274,
+        "aic": -446.073824818675,
+        "implied_doubling_h": 0.5035340569522061,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 107.7696637671037,
+        "mu_max": 1.3765646493772674,
+        "lag_time": 0.4704084266120097,
+        "adapt_rate": 0.29817270501757837,
+        "q0": 0.9890705462050661
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 7,
+      "family": "baranyi-adaptation",
+      "score": 0.019283051053210123,
       "is_valid": true,
       "n_params": 4,
       "metrics": {
-        "holdout_smape": 0.0600007853386662,
-        "holdout_mase": 2.3951971026226357,
-        "holdout_log_rmse": 0.07803147896949314,
-        "fit_r2": 0.9906864283460348,
-        "fit_log_rmse": 0.2154894872248668,
-        "aic": -470.871063987954,
-        "implied_doubling_h": 0.35534120857507057,
+        "holdout_smape": 0.019283051053210123,
+        "holdout_mase": 3.140027581113784,
+        "holdout_log_rmse": 0.022217095838827045,
+        "fit_r2": 0.9953885580822968,
+        "fit_log_rmse": 0.022312605820790067,
+        "aic": -448.3124172142076,
+        "implied_doubling_h": 0.49987928684202293,
         "plausibility": 1.0
       },
       "params": {
-        "n0": 1.4402299460203012,
-        "mu_max": 1.9507880541321247,
-        "lag": 0.3491341306986382,
-        "carrying_capacity": 40427.285127163435
+        "n0": 107.45213188794223,
+        "mu_max": 1.386629134464886,
+        "lag_time": 0.4896545931583436,
+        "adapt_rate": 0.2833470292270255
       },
       "status": "ok"
     },
     {
-      "iteration": 5,
-      "family": "two-reservoir-monod",
-      "score": 0.09638398769580733,
+      "iteration": 4,
+      "family": "two-stage-lag",
+      "score": 0.03417497572001257,
       "is_valid": true,
-      "n_params": 5,
+      "n_params": 4,
       "metrics": {
-        "holdout_smape": 0.09638398769580733,
-        "holdout_mase": 3.7557342252826613,
-        "holdout_log_rmse": 0.11640207851962855,
-        "fit_r2": 0.9857474918775595,
-        "fit_log_rmse": 0.25387270206827,
-        "aic": -417.72776089232116,
-        "implied_doubling_h": 0.3634687310445122,
+        "holdout_smape": 0.03417497572001257,
+        "holdout_mase": 6.124763005529553,
+        "holdout_log_rmse": 0.04310960662337402,
+        "fit_r2": 0.9945770468363946,
+        "fit_log_rmse": 0.025723828873606698,
+        "aic": -431.24050277605755,
+        "implied_doubling_h": 0.5431687475600319,
         "plausibility": 1.0
       },
       "params": {
-        "n0": 2.102819189271354,
-        "mu_max": 3.4999999999999996,
-        "lag": 0.5200553370519843,
-        "carrying_capacity": 36180.999307143,
-        "k_s": 30091.922025656735
-      },
-      "status": "ok"
-    },
-    {
-      "iteration": 3,
-      "family": "monod-substrate",
-      "score": 0.1584224608302129,
-      "is_valid": true,
-      "n_params": 5,
-      "metrics": {
-        "holdout_smape": 0.1584224608302129,
-        "holdout_mase": 5.942399784611116,
-        "holdout_log_rmse": 0.17461340752877097,
-        "fit_r2": 0.9550675894960728,
-        "fit_log_rmse": 0.24595394730438716,
-        "aic": -427.6146215962809,
-        "implied_doubling_h": 0.37266605175286865,
-        "plausibility": 1.0
-      },
-      "params": {
-        "n0": 0.8900723494464913,
-        "mu_max": 1.8599677921930562,
-        "ks": 9.999993919916005,
-        "yield": 0.0003377582841237281,
-        "s0": 100000000.0
+        "n0": 117.09875698489064,
+        "mu_max": 1.2761179163406025,
+        "lag": 1.1580880522171272e-14,
+        "k": 1.2608178530634173
       },
       "status": "ok"
     }
   ],
   "leaderboard": [
     {
-      "iteration": 2,
-      "family": "baranyi-robust-fixed",
-      "score": 0.0600007853386662,
+      "iteration": 6,
+      "family": "two-stage-lag-adaptation",
+      "score": 0.01801210973070113,
+      "is_valid": true,
+      "n_params": 5,
+      "metrics": {
+        "holdout_smape": 0.01801210973070113,
+        "holdout_mase": 2.926176347139386,
+        "holdout_log_rmse": 0.0201663104551202,
+        "fit_r2": 0.9953661890720652,
+        "fit_log_rmse": 0.022357013437270274,
+        "aic": -446.073824818675,
+        "implied_doubling_h": 0.5035340569522061,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 107.7696637671037,
+        "mu_max": 1.3765646493772674,
+        "lag_time": 0.4704084266120097,
+        "adapt_rate": 0.29817270501757837,
+        "q0": 0.9890705462050661
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 7,
+      "family": "baranyi-adaptation",
+      "score": 0.019283051053210123,
       "is_valid": true,
       "n_params": 4,
       "metrics": {
-        "holdout_smape": 0.0600007853386662,
-        "holdout_mase": 2.3951971026226357,
-        "holdout_log_rmse": 0.07803147896949314,
-        "fit_r2": 0.9906864283460348,
-        "fit_log_rmse": 0.2154894872248668,
-        "aic": -470.871063987954,
-        "implied_doubling_h": 0.35534120857507057,
+        "holdout_smape": 0.019283051053210123,
+        "holdout_mase": 3.140027581113784,
+        "holdout_log_rmse": 0.022217095838827045,
+        "fit_r2": 0.9953885580822968,
+        "fit_log_rmse": 0.022312605820790067,
+        "aic": -448.3124172142076,
+        "implied_doubling_h": 0.49987928684202293,
         "plausibility": 1.0
       },
       "params": {
-        "n0": 1.4402299460203012,
-        "mu_max": 1.9507880541321247,
-        "lag": 0.3491341306986382,
-        "carrying_capacity": 40427.285127163435
-      },
-      "status": "ok"
-    },
-    {
-      "iteration": 5,
-      "family": "two-reservoir-monod",
-      "score": 0.09638398769580733,
-      "is_valid": true,
-      "n_params": 5,
-      "metrics": {
-        "holdout_smape": 0.09638398769580733,
-        "holdout_mase": 3.7557342252826613,
-        "holdout_log_rmse": 0.11640207851962855,
-        "fit_r2": 0.9857474918775595,
-        "fit_log_rmse": 0.25387270206827,
-        "aic": -417.72776089232116,
-        "implied_doubling_h": 0.3634687310445122,
-        "plausibility": 1.0
-      },
-      "params": {
-        "n0": 2.102819189271354,
-        "mu_max": 3.4999999999999996,
-        "lag": 0.5200553370519843,
-        "carrying_capacity": 36180.999307143,
-        "k_s": 30091.922025656735
-      },
-      "status": "ok"
-    },
-    {
-      "iteration": 3,
-      "family": "monod-substrate",
-      "score": 0.1584224608302129,
-      "is_valid": true,
-      "n_params": 5,
-      "metrics": {
-        "holdout_smape": 0.1584224608302129,
-        "holdout_mase": 5.942399784611116,
-        "holdout_log_rmse": 0.17461340752877097,
-        "fit_r2": 0.9550675894960728,
-        "fit_log_rmse": 0.24595394730438716,
-        "aic": -427.6146215962809,
-        "implied_doubling_h": 0.37266605175286865,
-        "plausibility": 1.0
-      },
-      "params": {
-        "n0": 0.8900723494464913,
-        "mu_max": 1.8599677921930562,
-        "ks": 9.999993919916005,
-        "yield": 0.0003377582841237281,
-        "s0": 100000000.0
+        "n0": 107.45213188794223,
+        "mu_max": 1.386629134464886,
+        "lag_time": 0.4896545931583436,
+        "adapt_rate": 0.2833470292270255
       },
       "status": "ok"
     },
     {
       "iteration": 4,
-      "family": "baranyi-richards",
-      "score": 0.24362738286135,
+      "family": "two-stage-lag",
+      "score": 0.03417497572001257,
       "is_valid": true,
-      "n_params": 5,
+      "n_params": 4,
       "metrics": {
-        "holdout_smape": 0.24362738286135,
-        "holdout_mase": 10.843230975217182,
-        "holdout_log_rmse": 0.27650583372204596,
-        "fit_r2": 0.5656785868388234,
-        "fit_log_rmse": 0.6254866827786484,
-        "aic": -136.3982748249516,
-        "implied_doubling_h": 0.35174135440899545,
+        "holdout_smape": 0.03417497572001257,
+        "holdout_mase": 6.124763005529553,
+        "holdout_log_rmse": 0.04310960662337402,
+        "fit_r2": 0.9945770468363946,
+        "fit_log_rmse": 0.025723828873606698,
+        "aic": -431.24050277605755,
+        "implied_doubling_h": 0.5431687475600319,
         "plausibility": 1.0
       },
       "params": {
-        "n0": 2.081040020097049,
-        "mu_max": 2.6592433054938183,
-        "lag": 0.6686834836450326,
-        "carrying_capacity": 62442.81177311073,
-        "nu": 0.18876440952308107
+        "n0": 117.09875698489064,
+        "mu_max": 1.2761179163406025,
+        "lag": 1.1580880522171272e-14,
+        "k": 1.2608178530634173
       },
       "status": "ok"
     },
     {
-      "iteration": 6,
-      "family": "age-structured-maturity",
-      "score": 2.0,
+      "iteration": 3,
+      "family": "baranyi-lag",
+      "score": 0.08491742865115397,
+      "is_valid": true,
+      "n_params": 4,
+      "metrics": {
+        "holdout_smape": 0.08491742865115397,
+        "holdout_mase": 16.190667380190142,
+        "holdout_log_rmse": 0.09823803990331431,
+        "fit_r2": 0.9956297526054486,
+        "fit_log_rmse": 0.021655390173674165,
+        "aic": -451.9001064112343,
+        "implied_doubling_h": 0.4205774072607592,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 112.73976035196712,
+        "mu_max": 1.6480846962344402,
+        "lag": 1.0834406869449413e-16,
+        "q0": 0.23088462495556708
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 10,
+      "family": "cell-cycle-two-phase-delay",
+      "score": 0.2808301949434658,
       "is_valid": true,
       "n_params": 5,
       "metrics": {
-        "holdout_smape": 2.0,
-        "holdout_mase": 39.78007919454317,
-        "holdout_log_rmse": 31.30845026941188,
-        "fit_r2": -0.5775243756450512,
-        "fit_log_rmse": 6.1267255303203285,
-        "aic": 575.5500560293012,
-        "implied_doubling_h": 0.0009142130098860049,
-        "plausibility": 0.7000279781251134
+        "holdout_smape": 0.2808301949434658,
+        "holdout_mase": 41.416369192962776,
+        "holdout_log_rmse": 0.31309489496024373,
+        "fit_r2": 0.9781949354612591,
+        "fit_log_rmse": 0.04205784222128813,
+        "aic": -370.2451294901693,
+        "implied_doubling_h": 0.8716642697298937,
+        "plausibility": 1.0
       },
       "params": {
-        "n0": 4.0516748698709275,
-        "mu_max": 2.4246903493616667,
-        "maturation_rate": 4.975623009231756,
-        "carrying_capacity": 45931.50215675589,
-        "death_rate": 2.336051966180698e-47
+        "n0": 111.47471948246228,
+        "k_g1": 1.6830483247327206,
+        "k_division": 2.2196373421052,
+        "frac_s": 0.011658956617925776,
+        "lag": 0.024999988502681605
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 2,
+      "family": "exponential",
+      "score": 0.3378765050968087,
+      "is_valid": true,
+      "n_params": 2,
+      "metrics": {
+        "holdout_smape": 0.3378765050968087,
+        "holdout_mase": 48.09708400592208,
+        "holdout_log_rmse": 0.37485376507347645,
+        "fit_r2": 0.9635065099693414,
+        "fit_log_rmse": 0.057278683932753184,
+        "aic": -339.17920791536443,
+        "implied_doubling_h": 0.9513919219089423,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 101.12207388777907,
+        "mu_max": 0.728561137211569
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 8,
+      "family": "two-state-switching",
+      "score": 1.2269664531264641,
+      "is_valid": true,
+      "n_params": 5,
+      "metrics": {
+        "holdout_smape": 1.2269664531264641,
+        "holdout_mase": 116.00730110586476,
+        "holdout_log_rmse": 1.443859747507702,
+        "fit_r2": 0.9634943524339581,
+        "fit_log_rmse": 0.057287951415444696,
+        "aic": -333.15979392241564,
+        "implied_doubling_h": 0.9509229069154659,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 101.11813996742568,
+        "mu_fast": 0.728953168513653,
+        "mu_slow": 0.49999999999999856,
+        "switch_fs": 0.010000000000000026,
+        "switch_sf": 4.999999999999989
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 5,
+      "family": "monod-consumer",
+      "score": 1.2269696962957348,
+      "is_valid": true,
+      "n_params": 5,
+      "metrics": {
+        "holdout_smape": 1.2269696962957348,
+        "holdout_mase": 116.00752759378814,
+        "holdout_log_rmse": 1.4438659221619783,
+        "fit_r2": 0.9635065021036014,
+        "fit_log_rmse": 0.057278683778163315,
+        "aic": -333.1792082392333,
+        "implied_doubling_h": 0.9513919187742801,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 101.12207430461385,
+        "mu_max": 0.7285611115798261,
+        "K_s": 1.0000025782996049e-06,
+        "s0": 289395.7605314824,
+        "Y": 7.056432717866823e-07
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 9,
+      "family": "cell-cycle-two-phase",
+      "score": 1.2290051459819833,
+      "is_valid": true,
+      "n_params": 4,
+      "metrics": {
+        "holdout_smape": 1.2290051459819833,
+        "holdout_mase": 116.27353017513977,
+        "holdout_log_rmse": 1.4507137482045476,
+        "fit_r2": 0.9774764600187603,
+        "fit_log_rmse": 0.0430122791939297,
+        "aic": -369.55235696851594,
+        "implied_doubling_h": 0.8772557265890891,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 110.39446022576227,
+        "k_g1": 1.9331659491683606,
+        "k_division": 1.88249941449223,
+        "frac_s": 0.010000000000016959
       },
       "status": "ok"
     },
     {
       "iteration": 1,
-      "family": "baranyi-robust",
+      "family": "logistic",
       "score": Infinity,
       "is_valid": false,
-      "n_params": 4,
-      "metrics": {
-        "holdout_smape": 0.059894196490439075,
-        "holdout_mase": 2.3908687985055437,
-        "holdout_log_rmse": 0.0779226148858272,
-        "fit_r2": 0.9907029831160769,
-        "fit_log_rmse": 0.21608395556992513,
-        "aic": -470.0115382499452,
-        "implied_doubling_h": 0.3552240867049315,
-        "plausibility": 1.0
-      },
-      "params": {
-        "n0": 1.438747719494913,
-        "mu_max": 1.9515291542760824,
-        "lag": 0.3498052206349858,
-        "carrying_capacity": 40410.409394167975
-      },
-      "status": "over time budget"
+      "n_params": 3,
+      "metrics": {},
+      "params": null,
+      "status": "crashed"
     }
   ]
 }

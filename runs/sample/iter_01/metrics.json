@@ -1,29 +1,15 @@
 {
-  "family": "baranyi-robust",
-  "params": {
-    "n0": 1.438747719494913,
-    "mu_max": 1.9515291542760824,
-    "lag": 0.3498052206349858,
-    "carrying_capacity": 40410.409394167975
-  },
-  "n_params": 4,
-  "passed_checks": true,
-  "crashed": false,
+  "family": "logistic",
+  "params": null,
+  "n_params": 3,
+  "passed_checks": false,
+  "crashed": true,
   "nondeterministic": false,
-  "over_budget": true,
-  "error": null,
+  "over_budget": false,
+  "error": "fit/predict raised:\nTraceback (most recent call last):\n  File \"/Users/jlorincz/orca/workspaces/digital-twin/medusa/src/medusa/harness/evaluate.py\", line 101, in evaluate_source\n    params = dict(twin.fit(fit_obs))\n                  ^^^^^^^^^^^^^^^^^\n  File \"twin.py\", line 81, in fit\n    res = least_squares(residual_logp, p0, method='lm', max_nfev=2000)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/jlorincz/orca/workspaces/digital-twin/medusa/.venv/lib/python3.12/site-packages/scipy/_lib/_util.py\", line 662, in inner\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/jlorincz/orca/workspaces/digital-twin/medusa/.venv/lib/python3.12/site-packages/scipy/optimize/_lsq/least_squares.py\", line 901, in least_squares\n    raise ValueError(\"Initial guess is outside of provided bounds\")\nValueError: Initial guess is outside of provided bounds\n",
   "checker_report": "OK",
-  "runtime_s": 11.02823149971664,
-  "metrics": {
-    "holdout_smape": 0.059894196490439075,
-    "holdout_mase": 2.3908687985055437,
-    "holdout_log_rmse": 0.0779226148858272,
-    "fit_r2": 0.9907029831160769,
-    "fit_log_rmse": 0.21608395556992513,
-    "aic": -470.0115382499452,
-    "implied_doubling_h": 0.3552240867049315,
-    "plausibility": 1.0
-  },
+  "runtime_s": 0.0005923337303102016,
+  "metrics": {},
   "is_valid": false,
   "score": Infinity
 }

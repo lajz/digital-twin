@@ -1,24 +1,29 @@
-# Sample run
+# Sample run — real E. coli microscopy data
 
-A real `deepseek-v4-flash` run committed as a reference of the `runs/` layout:
+A real `deepseek-v4-flash` run on the **`ipb-ecoli`** dataset:
 
 ```bash
-uv run medusa run --iters 12
+uv run medusa fetch --dataset ipb-ecoli
+uv run medusa run   --dataset ipb-ecoli --iters 12
 ```
 
-on the `synthetic-ecoli-fast` dataset (`--iters 12`, stopped early at iteration 6
-once 3+ plausible families were found and the best score plateaued below target).
+*E. coli* K-12 microcolony on an agar pad — 100 phase-contrast frames at 90 s,
+CellProfiler+Omnipose cell counts (110 → 1160 cells over ~2.5 h). Stopped early at
+iteration 10 once 3+ plausible families were found and the best score plateaued.
 
 Highlights (`scorecard.json`):
 
-- best holdout sMAPE **0.060** (`baranyi-robust-fixed`, a Baranyi-Roberts ODE) —
-  recovered mu_max 1.95 /h (true 2.0), K 40 427 (true 40 000)
-- 5 distinct plausible model families explored, `iters_to_target` = 2
-- ~$0.011, 21.9k prompt + 11.8k response tokens
+- best held-out sMAPE **0.018** (`two-stage-lag-adaptation`, a Baranyi-style ODE with
+  an adaptation term) — fit R² 0.995
+- **implied doubling time 30 min** — squarely in the literature range for E. coli on
+  agar pads (the plausibility anchor)
+- 9 distinct plausible model families explored, `iters_to_target` = 3
+- ~$0.018, 36.5k prompt + 18.1k response tokens
 
-Note iteration 1 (`baranyi-robust`) forecast well but was **disqualified** for
-exceeding the 5 s runtime budget (`differential_evolution`); iteration 2 is the agent
-rewriting its own calibration to be faster after seeing that feedback.
+Notable: iteration 1 (`logistic`) crashed on the real data; iterations 5/8/9 proposed
+families that collapsed to near-constant forecasts (sMAPE ≈ 1.23) and ranked last. The
+top 3 are all lag/adaptation variants — they capture the mild deceleration in the real
+curve that a plain exponential (iter 2, sMAPE 0.34) misses.
 
-Each `iter_NN/` keeps the prompt, the agent message, `twin.py`, `metrics.json`, and a
-`forecast.png`; `portfolio/` holds the ranked top 3.
+Per-iteration `forecast.png` and `prompt.md` were stripped to keep the repo light; a
+live run writes them under each `iter_NN/`.

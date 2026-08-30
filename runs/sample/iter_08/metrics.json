@@ -1,0 +1,30 @@
+{
+  "family": "two-state-switching",
+  "params": {
+    "n0": 101.11813996742568,
+    "mu_fast": 0.728953168513653,
+    "mu_slow": 0.49999999999999856,
+    "switch_fs": 0.010000000000000026,
+    "switch_sf": 4.999999999999989
+  },
+  "n_params": 5,
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 0.45739958295598626,
+  "metrics": {
+    "holdout_smape": 1.2269664531264641,
+    "holdout_mase": 116.00730110586476,
+    "holdout_log_rmse": 1.443859747507702,
+    "fit_r2": 0.9634943524339581,
+    "fit_log_rmse": 0.057287951415444696,
+    "aic": -333.15979392241564,
+    "implied_doubling_h": 0.9509229069154659,
+    "plausibility": 1.0
+  },
+  "is_valid": true,
+  "score": 1.2269664531264641
+}

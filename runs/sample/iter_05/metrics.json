@@ -1,11 +1,11 @@
 {
-  "family": "two-reservoir-monod",
+  "family": "monod-consumer",
   "params": {
-    "n0": 2.102819189271354,
-    "mu_max": 3.4999999999999996,
-    "lag": 0.5200553370519843,
-    "carrying_capacity": 36180.999307143,
-    "k_s": 30091.922025656735
+    "n0": 101.12207430461385,
+    "mu_max": 0.7285611115798261,
+    "K_s": 1.0000025782996049e-06,
+    "s0": 289395.7605314824,
+    "Y": 7.056432717866823e-07
   },
   "n_params": 5,
   "passed_checks": true,
@@ -14,17 +14,17 @@
   "over_budget": false,
   "error": null,
   "checker_report": "OK",
-  "runtime_s": 1.1675881249830127,
+  "runtime_s": 0.21405049972236156,
   "metrics": {
-    "holdout_smape": 0.09638398769580733,
-    "holdout_mase": 3.7557342252826613,
-    "holdout_log_rmse": 0.11640207851962855,
-    "fit_r2": 0.9857474918775595,
-    "fit_log_rmse": 0.25387270206827,
-    "aic": -417.72776089232116,
-    "implied_doubling_h": 0.3634687310445122,
+    "holdout_smape": 1.2269696962957348,
+    "holdout_mase": 116.00752759378814,
+    "holdout_log_rmse": 1.4438659221619783,
+    "fit_r2": 0.9635065021036014,
+    "fit_log_rmse": 0.057278683778163315,
+    "aic": -333.1792082392333,
+    "implied_doubling_h": 0.9513919187742801,
     "plausibility": 1.0
   },
   "is_valid": true,
-  "score": 0.09638398769580733
+  "score": 1.2269696962957348
 }

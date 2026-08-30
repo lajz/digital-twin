@@ -1,145 +1,84 @@
 import numpy as np
-from scipy.integrate import solve_ivp
-from scipy.optimize import differential_evolution, minimize
+from scipy.optimize import least_squares
 
 class Twin:
-    FAMILY = "baranyi-robust-fixed"
+    FAMILY = "exponential"
     
     PARAMS = {
-        "n0": (0.5, 100, "cells"),
-        "mu_max": (0.5, 3.5, "1/h"),
-        "lag": (0.0, 3.0, "h"),
-        "carrying_capacity": (1e3, 1e6, "cells"),
+        "n0":     (1.0, 1e4, "cells"),
+        "mu_max": (0.33, 1.5, "1/h"),
     }
     
     METADATA = {
         "assumptions": [
-            "well-mixed", 
-            "single limiting nutrient",
-            "Baranyi-Roberts lag phase with adjustment function",
-            "log-normal multiplicative noise on observations"
+            "well-mixed",
+            "no lag, no saturation in window",
+            "exponential growth (Malthusian)",
+            "counts are integer but modeled as continuous",
+            "constant division rate over observed range"
         ],
         "state_vars": ["N"],
-        "refs": ["Baranyi & Roberts 1994", "Buchanan et al. 1997"],
+        "refs": ["Malthus 1798; Monod 1949"],
     }
     
-    def fit(self, obs):
+    def fit(self, obs) -> dict[str, float]:
         t_h = obs.time_s / 3600.0
         y = obs.population_count.astype(float)
-        # use log-space residuals to handle range of magnitudes
-        y_log = np.log(y + 1.0)
         
-        bounds = [
-            self.PARAMS["n0"][:2],
-            self.PARAMS["mu_max"][:2],
-            self.PARAMS["lag"][:2],
-            self.PARAMS["carrying_capacity"][:2],
-        ]
+        # Fit N(t) = n0 * exp(mu * t) in log space
+        # log y = log n0 + mu * t
+        # Use linear regression on log(y) for initial guess, then refine with least_squares
+        logy = np.log(y)
         
-        # Initial guess from data: n0 ~ first point, mu_max from early growth, lag ~ time to double
-        n0_guess = max(1.0, y[0])
-        # find where population starts growing significantly (first time > 2*n0)
-        idx = np.where(y > 2*n0_guess)[0]
-        if len(idx) > 0:
-            t_growth = t_h[idx[0]]
-            lag_guess = max(0.0, t_growth - 0.3)
-        else:
-            lag_guess = 0.5
-        # estimate mu_max from log-linear part (between lag and saturation)
-        mu_max_guess = 2.0
-        K_guess = np.max(y) * 1.5
+        # Initial guess via linear regression on log(y) vs t
+        A = np.vstack([np.ones_like(t_h), t_h]).T
+        coef, _, _, _ = np.linalg.lstsq(A, logy, rcond=None)
+        log_n0_init = coef[0]
+        mu_init = coef[1]
         
-        x0 = [n0_guess, mu_max_guess, lag_guess, K_guess]
-        x0 = np.clip(x0, [b[0] for b in bounds], [b[1] for b in bounds])
+        # Clamp to plausible ranges
+        n0_lo, n0_hi, _ = self.PARAMS["n0"]
+        mu_lo, mu_hi, _ = self.PARAMS["mu_max"]
         
-        def residuals(params):
-            n0, mu_max, lag, K = params
-            # clamp to bounds for safety
-            n0 = np.clip(n0, *self.PARAMS["n0"][:2])
-            mu_max = np.clip(mu_max, *self.PARAMS["mu_max"][:2])
-            lag = np.clip(lag, *self.PARAMS["lag"][:2])
-            K = np.clip(K, *self.PARAMS["carrying_capacity"][:2])
-            
-            p = {"n0": n0, "mu_max": mu_max, "lag": lag, "carrying_capacity": K}
-            try:
-                pred = self.predict(p, t_h * 3600.0)
-                pred = np.maximum(pred, 0.0)
-                pred_log = np.log(pred + 1.0)
-                return pred_log - y_log
-            except Exception:
-                return np.ones_like(y_log) * 1e6
+        n0_init = np.clip(np.exp(log_n0_init), n0_lo, n0_hi)
+        mu_init = np.clip(mu_init, mu_lo, mu_hi)
         
-        # First local optimization from good initial guess
-        result_local = minimize(
-            lambda p: np.sum(residuals(p)**2),
-            x0,
-            method='L-BFGS-B',
-            bounds=bounds,
-            options={'maxiter': 200, 'ftol': 1e-12},
-        )
+        # Optimize in log-space to keep positive and bounded
+        # Transform: n0 = n0_lo + (n0_hi - n0_lo) * sigmoid(x0)
+        #           mu = mu_lo + (mu_hi - mu_lo) * sigmoid(x1)
+        def sigmoid(x):
+            return 1.0 / (1.0 + np.exp(-x))
         
-        if result_local.success:
-            best = result_local.x
-        else:
-            # fallback to differential evolution
-            result = differential_evolution(
-                lambda p: np.sum(residuals(p)**2),
-                bounds,
-                seed=42,
-                maxiter=200,
-                popsize=15,
-                tol=1e-10,
-                polish=True,
-                workers=1,
-            )
-            best = result.x
+        # Inverse transform for initial guess
+        x0_init = np.log((n0_init - n0_lo) / (n0_hi - n0_init))
+        x1_init = np.log((mu_init - mu_lo) / (mu_hi - mu_init))
+        p0 = np.array([x0_init, x1_init])
         
-        # ensure within bounds
-        best = np.clip(best, [b[0] for b in bounds], [b[1] for b in bounds])
+        def residual(x):
+            n0 = n0_lo + (n0_hi - n0_lo) * sigmoid(x[0])
+            mu = mu_lo + (mu_hi - mu_lo) * sigmoid(x[1])
+            N_pred = n0 * np.exp(mu * t_h)
+            return logy - np.log(N_pred)
+        
+        # Use least_squares (unconstrained on x, but sigmoid keeps params in bounds)
+        res = least_squares(residual, p0, max_nfev=2000)
+        x_opt = res.x
+        
+        n0 = n0_lo + (n0_hi - n0_lo) * sigmoid(x_opt[0])
+        mu = mu_lo + (mu_hi - mu_lo) * sigmoid(x_opt[1])
+        
+        # Ensure within bounds (numerical safety)
+        n0 = float(np.clip(n0, n0_lo, n0_hi))
+        mu = float(np.clip(mu, mu_lo, mu_hi))
         
         return {
-            "n0": best[0],
-            "mu_max": best[1],
-            "lag": best[2],
-            "carrying_capacity": best[3],
+            "n0": n0,
+            "mu_max": mu,
         }
     
-    def predict(self, params, time_s):
-        t_h = np.asarray(time_s, dtype=float) / 3600.0
+    def predict(self, params: dict, time_s: np.ndarray) -> np.ndarray:
         n0 = params["n0"]
-        mu_max = params["mu_max"]
-        lag = params["lag"]
-        K = params["carrying_capacity"]
-        
-        # Baranyi-Roberts model with adjustment function
-        # Use explicit lag with smooth transition: alpha = 0 for t<lag, then 1
-        # Smooth transition via logistic with width ~0.05h
-        def rhs(t, N):
-            # smooth adjustment function, sharp transition
-            alpha = 1.0 / (1.0 + np.exp(-(t - lag) * 40.0))
-            if N <= 0:
-                return 0.0
-            return mu_max * alpha * N * (1.0 - N / K)
-        
-        # integrate from t=0 to max time
-        t_span = (0.0, t_h[-1] if len(t_h) > 0 else 0.0)
-        if t_span[1] <= 0:
-            return np.array([n0])
-        
-        # use dense output for arbitrary times
-        sol = solve_ivp(
-            rhs, t_span, [n0], 
-            t_eval=t_h, 
-            method='LSODA',
-            rtol=1e-8, atol=1e-8,
-            max_step=0.05,
-        )
-        
-        if not sol.success:
-            # fallback: return constant
-            return np.full_like(t_h, n0)
-        
-        N = sol.y[0]
-        # ensure non-negative
-        N = np.maximum(N, 0.0)
+        mu = params["mu_max"]
+        t_h = time_s / 3600.0
+        N = n0 * np.exp(mu * t_h)
         return N

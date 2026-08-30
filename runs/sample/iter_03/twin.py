@@ -1,185 +1,125 @@
 import numpy as np
-from scipy.integrate import solve_ivp
-from scipy.optimize import differential_evolution, minimize
+from scipy.optimize import least_squares
 
 class Twin:
-    # Using a resource-explicit Monod model where growth is limited by a single substrate
-    # This is mechanistically distinct from Baranyi: lag emerges naturally from initial
-    # low substrate conversion efficiency, and carrying capacity is substrate-derived.
-    FAMILY = "monod-substrate"
+    FAMILY = "baranyi-lag"
     
     PARAMS = {
-        "n0": (0.5, 100, "cells"),
-        "mu_max": (0.5, 3.5, "1/h"),
-        "ks": (1e-3, 1e3, "substrate units"),       # half-saturation constant
-        "yield": (1e-7, 1e-3, "cells/substrate unit"),  # cells produced per substrate
-        "s0": (1e3, 1e8, "substrate units"),          # initial substrate
+        "n0":       (10.0, 1e4, "cells"),
+        "mu_max":   (0.2, 2.0, "1/h"),
+        "lag":      (0.0, 2.0, "h"),
+        "q0":       (1e-4, 1e2, "dimensionless"),
     }
     
     METADATA = {
         "assumptions": [
             "well-mixed",
-            "single limiting substrate",
-            "Monod growth kinetics: dN/dt = mu_max * S/(S+Ks) * N",
-            "substrate consumption proportional to growth: dS/dt = - (1/yield) * dN/dt",
-            "no maintenance or death",
-            "initial substrate S0 determines carrying capacity via yield*S0"
+            "single limiting resource",
+            "physiological lag phase modeled by Baranyi-Roberts",
+            "exponential growth after lag, no saturation in window",
+            "counts are continuous approximation of integer cells"
         ],
-        "state_vars": ["N", "S"],
-        "refs": ["Monod 1949", "Pirt 1975"],
+        "state_vars": ["N", "q"],
+        "refs": ["Baranyi & Roberts 1994"],
     }
     
-    def fit(self, obs):
+    def fit(self, obs) -> dict[str, float]:
         t_h = obs.time_s / 3600.0
         y = obs.population_count.astype(float)
-        y_log = np.log(y + 1.0)
+        logy = np.log(y)
         
-        # Parameter bounds
-        bounds = [
-            self.PARAMS["n0"][:2],
-            self.PARAMS["mu_max"][:2],
-            self.PARAMS["ks"][:2],
-            self.PARAMS["yield"][:2],
-            self.PARAMS["s0"][:2],
-        ]
+        # Baranyi-Roberts model:
+        # dN/dt = mu_max * (q/(q+1)) * N
+        # dq/dt = mu_max * q
+        # with initial q0.  Analytical solution for N(t):
+        # N(t) = n0 * exp(mu_max * t + (1/q0) * (exp(-mu_max*t) - 1) / (1 + 1/q0))
+        # Actually the standard closed form:
+        # A(t) = t + (1/mu_max)*ln(exp(-mu_max*t) + q0/(1+q0))
+        # N(t) = n0 * exp(mu_max * A(t))
+        # We'll implement that.
         
-        # Initial guesses
-        n0_guess = max(1.0, y[0])
-        # estimate mu_max from max log-slope in early growth (before saturation)
-        # crude: use first few points where y>2*n0
-        idx = np.where(y > 2*n0_guess)[0]
-        if len(idx) > 0:
-            t_growth = t_h[idx[0]]
-            # assume lag ~0.6h from data sheet, but we let it emerge
-            # use slope between t_growth and t_growth+1h
-            mask = (t_h >= t_growth) & (t_h <= t_growth + 1.0)
-            if mask.sum() >= 2:
-                t_sub = t_h[mask]
-                y_sub = np.maximum(y[mask], 1.0)
-                # log-linear fit
-                A = np.vstack([np.ones_like(t_sub), t_sub]).T
-                coeff, _, _, _ = np.linalg.lstsq(A, np.log(y_sub), rcond=None)
-                mu_est = max(0.5, min(3.5, coeff[1]))
-            else:
-                mu_est = 2.0
-        else:
-            mu_est = 2.0
+        def model(theta, t):
+            n0, mu, lag, q0 = theta
+            # Convert lag to an effective shift: we use the Baranyi adjustment
+            # but with a time shift to allow a lag period.
+            # Standard: N(t) = n0 * exp(mu * (t + (1/mu)*ln( (exp(-mu*t)+q0)/(1+q0) )))
+            # But to include an explicit lag, we shift time by lag: t_eff = t - lag
+            t_eff = t - lag
+            # For t_eff < 0, N stays at n0 (no growth before lag)
+            # For t_eff >= 0, use Baranyi formula
+            N = np.empty_like(t_eff)
+            mask = t_eff >= 0
+            if np.any(mask):
+                tt = t_eff[mask]
+                # Baranyi adjustment: A(t) = t + (1/mu)*ln( (exp(-mu*t)+q0)/(1+q0) )
+                # but to avoid overflow, use log-sum-exp trick
+                # Actually simpler: integrate ODE numerically? But analytical possible:
+                # A(t) = t + (1/mu)*ln( (exp(-mu*t)+q0)/(1+q0) )
+                # = t + (1/mu)*( ln(exp(-mu*t)+q0) - ln(1+q0) )
+                # For large mu*t, exp(-mu*t) -> 0, so ln(q0) - ln(1+q0) = -ln(1+1/q0)
+                # So A(t) ≈ t - (1/mu)*ln(1+1/q0) for large t.
+                # We'll compute safely.
+                exp_mt = np.exp(-mu * tt)
+                # avoid overflow: if mu*tt > 700, exp_mt = 0
+                exp_mt = np.where(mu*tt > 700, 0.0, exp_mt)
+                A = tt + (1.0/mu) * (np.log(exp_mt + q0) - np.log(1.0 + q0))
+                N[mask] = n0 * np.exp(mu * A)
+            N[~mask] = n0
+            return N
         
-        # Carrying capacity ~ max observed * 1.5
-        K_guess = np.max(y) * 1.5
-        # If yield and s0 product = K, set yield=1e-5, s0=K/yield
-        yield_guess = 1e-5
-        s0_guess = K_guess / yield_guess
-        # clamp s0 to bounds
-        s0_guess = np.clip(s0_guess, *self.PARAMS["s0"][:2])
-        ks_guess = 10.0  # arbitrary mid-range
+        # Initial guess: fit a pure exponential to get n0, mu, then set lag=0, q0=1
+        logy = np.log(y)
+        A_mat = np.vstack([np.ones_like(t_h), t_h]).T
+        coef, _, _, _ = np.linalg.lstsq(A_mat, logy, rcond=None)
+        n0_init = np.clip(np.exp(coef[0]), 10, 1e4)
+        mu_init = np.clip(coef[1], 0.2, 2.0)
+        lag_init = 0.0
+        q0_init = 1.0
         
-        x0 = [n0_guess, mu_est, ks_guess, yield_guess, s0_guess]
-        x0 = np.clip(x0, [b[0] for b in bounds], [b[1] for b in bounds])
+        # Bounds in transformed space? Use least_squares with bounds directly.
+        # We'll use parameter vector theta = [n0, mu, lag, q0] with bounds.
+        # To keep positive, use log-transform for n0 and q0.
+        # Actually least_squares can handle bounds.
+        lb = [10.0, 0.2, 0.0, 1e-4]
+        ub = [1e4, 2.0, 2.0, 1e2]
         
-        def residuals(params):
-            n0, mu_max, ks, yld, s0 = params
-            # clamp
-            n0 = np.clip(n0, *self.PARAMS["n0"][:2])
-            mu_max = np.clip(mu_max, *self.PARAMS["mu_max"][:2])
-            ks = np.clip(ks, *self.PARAMS["ks"][:2])
-            yld = np.clip(yld, *self.PARAMS["yield"][:2])
-            s0 = np.clip(s0, *self.PARAMS["s0"][:2])
-            
-            p = {
-                "n0": n0, "mu_max": mu_max, "ks": ks,
-                "yield": yld, "s0": s0
-            }
-            try:
-                pred = self.predict(p, t_h * 3600.0)
-                pred = np.maximum(pred, 0.0)
-                pred_log = np.log(pred + 1.0)
-                return pred_log - y_log
-            except Exception:
-                return np.ones_like(y_log) * 1e6
+        p0 = [n0_init, mu_init, lag_init, q0_init]
         
-        # Local optimization first
-        result_local = minimize(
-            lambda p: np.sum(residuals(p)**2),
-            x0,
-            method='L-BFGS-B',
-            bounds=bounds,
-            options={'maxiter': 200, 'ftol': 1e-12},
-        )
+        def residual(theta):
+            N_pred = model(theta, t_h)
+            # log residual to avoid scale issues
+            return logy - np.log(N_pred)
         
-        if result_local.success:
-            best = result_local.x
-        else:
-            # fallback to differential evolution
-            result = differential_evolution(
-                lambda p: np.sum(residuals(p)**2),
-                bounds,
-                seed=42,
-                maxiter=150,
-                popsize=15,
-                tol=1e-10,
-                polish=True,
-                workers=1,
-            )
-            best = result.x
-        
-        best = np.clip(best, [b[0] for b in bounds], [b[1] for b in bounds])
+        res = least_squares(residual, p0, bounds=(lb, ub), max_nfev=5000)
+        n0, mu, lag, q0 = res.x
+        # Ensure within bounds
+        n0 = float(np.clip(n0, lb[0], ub[0]))
+        mu = float(np.clip(mu, lb[1], ub[1]))
+        lag = float(np.clip(lag, lb[2], ub[2]))
+        q0 = float(np.clip(q0, lb[3], ub[3]))
         
         return {
-            "n0": best[0],
-            "mu_max": best[1],
-            "ks": best[2],
-            "yield": best[3],
-            "s0": best[4],
+            "n0": n0,
+            "mu_max": mu,
+            "lag": lag,
+            "q0": q0,
         }
     
-    def predict(self, params, time_s):
-        t_h = np.asarray(time_s, dtype=float) / 3600.0
+    def predict(self, params: dict, time_s: np.ndarray) -> np.ndarray:
         n0 = params["n0"]
-        mu_max = params["mu_max"]
-        ks = params["ks"]
-        yld = params["yield"]
-        s0 = params["s0"]
+        mu = params["mu_max"]
+        lag = params["lag"]
+        q0 = params["q0"]
+        t_h = time_s / 3600.0
         
-        # Initial substrate: S0
-        # Carrying capacity = yld * S0 (when S depleted)
-        # But we must ensure S0 is large enough to support growth to observed max
-        # The model will naturally saturate when S -> 0
-        
-        def rhs(t, state):
-            N, S = state
-            if N <= 0 or S <= 0:
-                return [0.0, 0.0]
-            # Monod term
-            growth_rate = mu_max * (S / (S + ks)) * N
-            # substrate consumption
-            dS = - (1.0 / yld) * growth_rate
-            # ensure S doesn't go negative
-            if S <= 0:
-                dS = 0.0
-                growth_rate = 0.0
-            return [growth_rate, dS]
-        
-        t_span = (0.0, t_h[-1] if len(t_h) > 0 else 0.0)
-        if t_span[1] <= 0:
-            return np.array([n0])
-        
-        # Use dense output
-        sol = solve_ivp(
-            rhs, t_span, [n0, s0],
-            t_eval=t_h,
-            method='LSODA',
-            rtol=1e-8, atol=1e-8,
-            max_step=0.05,
-        )
-        
-        if not sol.success:
-            # fallback: simple logistic with same carrying capacity
-            K = yld * s0
-            alpha = mu_max  # no lag
-            N_pred = K / (1 + (K/n0 - 1) * np.exp(-alpha * t_h))
-            return np.maximum(N_pred, 0.0)
-        
-        N = sol.y[0]
-        N = np.maximum(N, 0.0)
+        t_eff = t_h - lag
+        N = np.empty_like(t_eff)
+        mask = t_eff >= 0
+        if np.any(mask):
+            tt = t_eff[mask]
+            exp_mt = np.exp(-mu * tt)
+            exp_mt = np.where(mu*tt > 700, 0.0, exp_mt)
+            A = tt + (1.0/mu) * (np.log(exp_mt + q0) - np.log(1.0 + q0))
+            N[mask] = n0 * np.exp(mu * A)
+        N[~mask] = n0
         return N

@@ -90,16 +90,28 @@ So today: **every** loop knob lives in `config.LoopConfig` (prompt text included
 
 ## Real data
 
-`uv run medusa fetch` prints where to get the shortlisted public datasets:
+**`ipb-ecoli`** is wired up end to end:
 
-1. **DeLTA 2.0 agar-pad microcolony** (Zenodo, from doi:10.1101/2021.08.10.455795) — *first choice*
-2. **Cell Tracking Challenge** bacterial 2D sets (tracking ground truth)
-3. **Tanouchi et al. 2015 / Scientific Data 2017** (PMC5369309) — mother machine, fallback
+```bash
+uv run medusa fetch --dataset ipb-ecoli     # ~65 KB CSV -> data/raw/
+uv run medusa run   --dataset ipb-ecoli --iters 12
+```
 
-Drop a raw tracking CSV in `data/raw/` and reduce it with
-`medusa.data.fetch.build_from_raw(...)` (point it at the time / count / area columns).
-Synthetic presets (`medusa/data/synthetic.py`) back the benchmark suite and let the
-whole pipeline run with no download.
+Real *E. coli* K-12 microcolony on an agar pad — 100 phase-contrast frames at 90 s
+intervals, segmented by CellProfiler+Omnipose, reduced to cell count per frame
+(110 → 1160 cells). From Ahmadi et al. 2024, *"A benchmarked comparison of software
+packages for time-lapse image processing of monolayer bacterial population dynamics"*
+(Microbiology Spectrum;
+[github.com/ingallslab/ImageProcessing-Benchmarking](https://github.com/ingallslab/ImageProcessing-Benchmarking),
+CC-BY 4.0). It's one automated pipeline's count, not a manual ground truth, and the
+crop starts mid-growth (no lag/saturation phase) — so it's a growth-rate problem.
+See `runs/sample/` for a real run: best held-out sMAPE **0.018**, implied doubling
+time 30 min.
+
+Other shortlisted datasets (`uv run medusa fetch` with no args prints how to get them):
+DeLTA 2.0 agar-pad microcolony, Cell Tracking Challenge bacterial 2D sets, Tanouchi
+et al. 2015. Drop any raw tracking CSV in `data/raw/` and reduce it with
+`medusa.data.fetch.reduce_csv(...)` (point it at the time / count / area columns).
 
 ## Limitations
 

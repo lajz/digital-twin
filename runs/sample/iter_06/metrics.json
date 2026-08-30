@@ -1,11 +1,11 @@
 {
-  "family": "age-structured-maturity",
+  "family": "two-stage-lag-adaptation",
   "params": {
-    "n0": 4.0516748698709275,
-    "mu_max": 2.4246903493616667,
-    "maturation_rate": 4.975623009231756,
-    "carrying_capacity": 45931.50215675589,
-    "death_rate": 2.336051966180698e-47
+    "n0": 107.7696637671037,
+    "mu_max": 1.3765646493772674,
+    "lag_time": 0.4704084266120097,
+    "adapt_rate": 0.29817270501757837,
+    "q0": 0.9890705462050661
   },
   "n_params": 5,
   "passed_checks": true,
@@ -14,17 +14,17 @@
   "over_budget": false,
   "error": null,
   "checker_report": "OK",
-  "runtime_s": 1.2747146668843925,
+  "runtime_s": 0.3160024592652917,
   "metrics": {
-    "holdout_smape": 2.0,
-    "holdout_mase": 39.78007919454317,
-    "holdout_log_rmse": 31.30845026941188,
-    "fit_r2": -0.5775243756450512,
-    "fit_log_rmse": 6.1267255303203285,
-    "aic": 575.5500560293012,
-    "implied_doubling_h": 0.0009142130098860049,
-    "plausibility": 0.7000279781251134
+    "holdout_smape": 0.01801210973070113,
+    "holdout_mase": 2.926176347139386,
+    "holdout_log_rmse": 0.0201663104551202,
+    "fit_r2": 0.9953661890720652,
+    "fit_log_rmse": 0.022357013437270274,
+    "aic": -446.073824818675,
+    "implied_doubling_h": 0.5035340569522061,
+    "plausibility": 1.0
   },
   "is_valid": true,
-  "score": 2.0
+  "score": 0.01801210973070113
 }

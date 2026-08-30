@@ -6,8 +6,8 @@ __pycache__/
 *.egg-info/
 .venv/
 
-# medusa -- generated artifacts
-data/
-runs/*
-!runs/sample/
+# medusa -- generated artifacts (repo-root only; NOT src/medusa/data/)
+/data/
+/runs/*
+!/runs/sample/
 .env

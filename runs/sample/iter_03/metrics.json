@@ -1,30 +1,29 @@
 {
-  "family": "monod-substrate",
+  "family": "baranyi-lag",
   "params": {
-    "n0": 0.8900723494464913,
-    "mu_max": 1.8599677921930562,
-    "ks": 9.999993919916005,
-    "yield": 0.0003377582841237281,
-    "s0": 100000000.0
+    "n0": 112.73976035196712,
+    "mu_max": 1.6480846962344402,
+    "lag": 1.0834406869449413e-16,
+    "q0": 0.23088462495556708
   },
-  "n_params": 5,
+  "n_params": 4,
   "passed_checks": true,
   "crashed": false,
   "nondeterministic": false,
   "over_budget": false,
   "error": null,
   "checker_report": "OK",
-  "runtime_s": 0.47141379211097956,
+  "runtime_s": 0.003843375016003847,
   "metrics": {
-    "holdout_smape": 0.1584224608302129,
-    "holdout_mase": 5.942399784611116,
-    "holdout_log_rmse": 0.17461340752877097,
-    "fit_r2": 0.9550675894960728,
-    "fit_log_rmse": 0.24595394730438716,
-    "aic": -427.6146215962809,
-    "implied_doubling_h": 0.37266605175286865,
+    "holdout_smape": 0.08491742865115397,
+    "holdout_mase": 16.190667380190142,
+    "holdout_log_rmse": 0.09823803990331431,
+    "fit_r2": 0.9956297526054486,
+    "fit_log_rmse": 0.021655390173674165,
+    "aic": -451.9001064112343,
+    "implied_doubling_h": 0.4205774072607592,
     "plausibility": 1.0
   },
   "is_valid": true,
-  "score": 0.1584224608302129
+  "score": 0.08491742865115397
 }

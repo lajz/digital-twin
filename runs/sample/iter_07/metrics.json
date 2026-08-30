@@ -1,0 +1,29 @@
+{
+  "family": "baranyi-adaptation",
+  "params": {
+    "n0": 107.45213188794223,
+    "mu_max": 1.386629134464886,
+    "lag_time": 0.4896545931583436,
+    "adapt_rate": 0.2833470292270255
+  },
+  "n_params": 4,
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 0.3008020827546716,
+  "metrics": {
+    "holdout_smape": 0.019283051053210123,
+    "holdout_mase": 3.140027581113784,
+    "holdout_log_rmse": 0.022217095838827045,
+    "fit_r2": 0.9953885580822968,
+    "fit_log_rmse": 0.022312605820790067,
+    "aic": -448.3124172142076,
+    "implied_doubling_h": 0.49987928684202293,
+    "plausibility": 1.0
+  },
+  "is_valid": true,
+  "score": 0.019283051053210123
+}

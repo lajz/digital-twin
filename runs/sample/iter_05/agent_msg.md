@@ -1,217 +1,154 @@
 ```python
 import numpy as np
 from scipy.optimize import least_squares
-from scipy.integrate import solve_ivp
 
 class Twin:
-    # Mechanistic: two-reservoir model with explicit lag via "maturation" of a
-    # bottleneck enzyme. Cells transition from lag to exponential growth when a
-    # critical enzyme pool is built. Growth is then limited by a Monod-type
-    # resource depletion, but we model the resource implicitly via a carrying
-    # capacity with a smooth switch. This is distinct from Baranyi-Richards
-    # because the lag is driven by a separate state variable (enzyme) with its
-    # own dynamics, and the growth term uses a Monod form with a time-varying
-    # substrate that is consumed proportionally to growth.
-    FAMILY = "two-reservoir-monod"
+    FAMILY = "monod-consumer"
     
     PARAMS = {
-        "n0": (0.5, 100.0, "cells"),
-        "mu_max": (0.5, 3.5, "1/h"),
-        "lag": (0.0, 3.0, "h"),
-        "carrying_capacity": (1e3, 1e6, "cells"),
-        "k_s": (1e2, 1e6, "cells"),  # Monod half-saturation in terms of equivalent population
+        "n0":     (1.0, 1e4, "cells"),
+        "mu_max": (0.2, 2.0, "1/h"),
+        "K_s":    (1e-6, 1e3, "substrate units"),
+        "s0":     (1e-3, 1e6, "substrate units"),
+        "Y":      (1e-8, 1e-2, "cells/substrate unit"),
     }
     
     METADATA = {
         "assumptions": [
             "well-mixed",
-            "single limiting resource",
-            "lag phase due to accumulation of a bottleneck enzyme",
-            "growth rate follows Monod kinetics on a resource that is depleted proportionally to biomass",
-            "resource pool is implicit in carrying capacity",
-            "no death, no maintenance"
+            "single limiting resource (substrate S)",
+            "Monod kinetics for growth: mu = mu_max * S/(K_s + S)",
+            "substrate consumption coupled to growth: dS/dt = -(1/Y)*dN/dt",
+            "no maintenance, no death, no saturation in cell count over window",
+            "counts are continuous approximation of integer cells"
         ],
-        "state_vars": ["N", "E", "S"],
-        "refs": ["Monod 1949", "Baranyi & Roberts 1994 (lag concept)"],
+        "state_vars": ["N", "S"],
+        "refs": ["Monod 1949", "Kovárová-Kovar & Egli 1998"],
     }
     
-    def fit(self, obs):
+    def fit(self, obs) -> dict[str, float]:
         t_h = obs.time_s / 3600.0
         y = obs.population_count.astype(float)
-        y_log = np.log(y + 1.0)
+        logy = np.log(y)
         
-        bounds = [
-            self.PARAMS["n0"][:2],
-            self.PARAMS["mu_max"][:2],
-            self.PARAMS["lag"][:2],
-            self.PARAMS["carrying_capacity"][:2],
-            self.PARAMS["k_s"][:2],
-        ]
+        # Model: dN/dt = mu_max * S/(K_s+S) * N
+        #        dS/dt = -(1/Y) * dN/dt
+        # Integral form: N + Y*S = const => S = S0 - (N-N0)/Y
+        # So dN/dt = mu_max * (S0 - (N-N0)/Y)/(K_s + S0 - (N-N0)/Y) * N
+        # Let A = Y*S0, B = Y*K_s, then S0 - (N-N0)/Y = (A - (N-N0))/Y
+        # dN/dt = mu_max * (A - N + N0)/(B + A - N + N0) * N
+        # Define C = A + N0 = Y*S0 + N0. Then dN/dt = mu_max * (C - N)/(B + C - N) * N
+        # This is a generalized logistic-like model. Solve ODE numerically.
         
-        # Initial guesses
-        n0_guess = max(1.0, y[0])
-        # Estimate mu from early exponential phase (before saturation)
-        mu_est = 2.0
-        if len(t_h) > 2:
-            slopes = []
-            for i in range(len(t_h)):
-                window = (t_h >= t_h[i]) & (t_h <= t_h[i] + 1.0)
-                if window.sum() >= 3:
-                    t_sub = t_h[window]
-                    y_sub = np.maximum(y[window], 1.0)
-                    if np.all(np.isfinite(y_sub)) and np.ptp(t_sub) > 0:
-                        A = np.vstack([np.ones_like(t_sub), t_sub]).T
-                        coeff, _, _, _ = np.linalg.lstsq(A, np.log(y_sub), rcond=None)
-                        if np.isfinite(coeff[1]):
-                            slopes.append(coeff[1])
-            if slopes:
-                mu_est = max(0.5, min(3.5, np.max(slopes)))
+        def model(theta, t):
+            n0, mu, K_s, s0, Y = theta
+            # Solve ODE
+            from scipy.integrate import solve_ivp
+            def rhs(t, z):
+                N = z[0]
+                S = z[1]
+                dN = mu * S/(K_s + S) * N
+                dS = -(1.0/Y) * dN
+                return [dN, dS]
+            z0 = [n0, s0]
+            sol = solve_ivp(rhs, [t[0], t[-1]], z0, t_eval=t, method='LSODA', rtol=1e-8, atol=1e-10)
+            return sol.y[0]
         
-        # Lag estimate: time when log(y) first exceeds log(n0)+0.5
-        lag_guess = 0.5
-        threshold = np.log(n0_guess) + 0.5
-        idx = np.where(np.log(y+1) > threshold)[0]
-        if len(idx) > 0:
-            lag_guess = max(0.0, t_h[idx[0]] - 0.2)
-        lag_guess = np.clip(lag_guess, *self.PARAMS["lag"][:2])
+        # Initial guess: fit pure exponential to late data
+        late_mask = t_h > 1.0
+        if np.sum(late_mask) > 2:
+            A_mat = np.vstack([np.ones_like(t_h[late_mask]), t_h[late_mask]]).T
+            coef, _, _, _ = np.linalg.lstsq(A_mat, logy[late_mask], rcond=None)
+            mu_init = np.clip(coef[1], 0.2, 2.0)
+            n0_init = np.clip(np.exp(coef[0] - mu_init*1.0), 10, 1e4)
+        else:
+            A_mat = np.vstack([np.ones_like(t_h), t_h]).T
+            coef, _, _, _ = np.linalg.lstsq(A_mat, logy, rcond=None)
+            n0_init = np.clip(np.exp(coef[0]), 10, 1e4)
+            mu_init = np.clip(coef[1], 0.2, 2.0)
         
-        K_guess = np.max(y) * 1.2
-        K_guess = np.clip(K_guess, *self.PARAMS["carrying_capacity"][:2])
-        k_s_guess = K_guess * 0.1
-        k_s_guess = np.clip(k_s_guess, *self.PARAMS["k_s"][:2])
+        # For Monod, we want S >> K_s over the window so growth is near exponential.
+        # Choose s0 large, K_s small, Y such that substrate depletion is negligible.
+        # But we allow some slight curvature if needed.
+        s0_init = 1e4
+        K_s_init = 1e-2
+        Y_init = 1e-5  # so that total cell mass change ~ (1160-110)*1e-5 ~ 0.01 substrate units, negligible vs s0
         
-        x0 = [n0_guess, mu_est, lag_guess, K_guess, k_s_guess]
-        x0 = np.clip(x0, [b[0] for b in bounds], [b[1] for b in bounds])
+        lb = [1.0, 0.2, 1e-6, 1e-3, 1e-8]
+        ub = [1e4, 2.0, 1e3, 1e6, 1e-2]
+        p0 = [n0_init, mu_init, K_s_init, s0_init, Y_init]
         
-        def residuals(params):
-            n0, mu_max, lag, K, k_s = params
-            n0 = np.clip(n0, *self.PARAMS["n0"][:2])
-            mu_max = np.clip(mu_max, *self.PARAMS["mu_max"][:2])
-            lag = np.clip(lag, *self.PARAMS["lag"][:2])
-            K = np.clip(K, *self.PARAMS["carrying_capacity"][:2])
-            k_s = np.clip(k_s, *self.PARAMS["k_s"][:2])
-            
-            p = {
-                "n0": n0, "mu_max": mu_max, "lag": lag,
-                "carrying_capacity": K, "k_s": k_s
-            }
+        def residual(theta):
             try:
-                pred = self.predict(p, t_h * 3600.0)
-                pred = np.maximum(pred, 1e-6)
-                pred_log = np.log(pred)
-                # Weighted log residuals, more weight on early low counts
-                return (pred_log - y_log) / np.sqrt(y + 1.0)
+                N_pred = model(theta, t_h)
             except Exception:
-                return np.ones_like(y_log) * 1e6
+                return np.ones_like(logy)*1e6
+            N_pred = np.maximum(N_pred, 1e-6)
+            return logy - np.log(N_pred)
         
-        # Multi-start least_squares for robustness
-        best_res = np.inf
-        best_x = None
+        # Use a few random restarts to avoid local minima
+        best_res = None
+        best_theta = None
         rng = np.random.default_rng(42)
-        starts = [x0]
-        for _ in range(5):
-            perturb = np.array([
-                rng.uniform(0.8, 1.2) for _ in range(5)
-            ])
-            starts.append(np.clip(x0 * perturb, [b[0] for b in bounds], [b[1] for b in bounds]))
-        
-        for start in starts:
+        for restart in range(5):
+            # perturb initial guess in log space
+            if restart > 0:
+                p0_pert = [
+                    np.clip(n0_init * np.exp(rng.normal(0, 0.1)), lb[0], ub[0]),
+                    np.clip(mu_init * np.exp(rng.normal(0, 0.1)), lb[1], ub[1]),
+                    np.clip(10**rng.uniform(-6, 2), lb[2], ub[2]),
+                    np.clip(10**rng.uniform(-2, 5), lb[3], ub[3]),
+                    np.clip(10**rng.uniform(-8, -2), lb[4], ub[4]),
+                ]
+            else:
+                p0_pert = p0
             try:
-                result = least_squares(
-                    residuals, start,
-                    bounds=([b[0] for b in bounds], [b[1] for b in bounds]),
-                    max_nfev=500,
-                    xtol=1e-12,
-                    ftol=1e-12,
-                    gtol=1e-12,
-                )
-                if result.cost < best_res:
-                    best_res = result.cost
-                    best_x = result.x
+                res = least_squares(residual, p0_pert, bounds=(lb, ub), max_nfev=2000)
+                if best_res is None or res.cost < best_res.cost:
+                    best_res = res
+                    best_theta = res.x
             except Exception:
                 continue
         
-        if best_x is None:
-            # Fallback to simple grid search on key params
-            mu_grid = np.linspace(0.5, 3.5, 10)
-            lag_grid = np.linspace(0.0, 2.0, 10)
-            K_grid = np.geomspace(1e3, 1e6, 10)
-            best_res = np.inf
-            best_x = x0
-            for mu in mu_grid:
-                for lag in lag_grid:
-                    for K in K_grid:
-                        params = [n0_guess, mu, lag, K, k_s_guess]
-                        res = np.sum(residuals(params)**2)
-                        if res < best_res:
-                            best_res = res
-                            best_x = params
+        if best_theta is None:
+            # fallback to simple exponential
+            best_theta = [n0_init, mu_init, 1e-2, 1e4, 1e-5]
         
-        best_x = np.clip(best_x, [b[0] for b in bounds], [b[1] for b in bounds])
+        n0, mu, K_s, s0, Y = best_theta
+        # Clamp to bounds
+        n0 = float(np.clip(n0, lb[0], ub[0]))
+        mu = float(np.clip(mu, lb[1], ub[1]))
+        K_s = float(np.clip(K_s, lb[2], ub[2]))
+        s0 = float(np.clip(s0, lb[3], ub[3]))
+        Y = float(np.clip(Y, lb[4], ub[4]))
         
         return {
-            "n0": best_x[0],
-            "mu_max": best_x[1],
-            "lag": best_x[2],
-            "carrying_capacity": best_x[3],
-            "k_s": best_x[4],
+            "n0": n0,
+            "mu_max": mu,
+            "K_s": K_s,
+            "s0": s0,
+            "Y": Y,
         }
     
-    def predict(self, params, time_s):
-        t_h = np.asarray(time_s, dtype=float) / 3600.0
+    def predict(self, params: dict, time_s: np.ndarray) -> np.ndarray:
         n0 = params["n0"]
-        mu_max = params["mu_max"]
-        lag = params["lag"]
-        K = params["carrying_capacity"]
-        k_s = params["k_s"]
+        mu = params["mu_max"]
+        K_s = params["K_s"]
+        s0 = params["s0"]
+        Y = params["Y"]
+        t_h = time_s / 3600.0
         
-        # Two-reservoir model:
-        # dN/dt = mu_max * (E/(E+1)) * (S/(S+k_s)) * N
-        # dE/dt = mu_max * E  (exponential buildup of enzyme)
-        # dS/dt = - (1/Y) * dN/dt  but we use a Monod term with S starting at K
-        # To keep it simple, we model S as a resource reservoir that is depleted
-        # proportionally to growth: S(t) = K - N(t) (since N consumes resource)
-        # But then Monod term becomes (K-N)/(K-N+k_s). This is equivalent to
-        # a logistic-like term but with a different shape. We'll use that.
-        #
-        # Enzyme E starts at E0 = 1/(exp(mu_max*lag)-1) so that E/(E+1) ~ 0
-        # initially and reaches ~1 after lag.
-        
-        E0 = 1.0 / (np.exp(mu_max * lag) - 1.0) if lag > 0 else 1e10
-        
-        def rhs(t, state):
-            N, E = state
-            if N <= 0 or E <= 0:
-                return [0.0, 0.0]
-            N_safe = min(N, K * 1.1)
-            S = max(K - N_safe, 0.0)
-            monod = S / (S + k_s) if S + k_s > 0 else 0.0
-            enzyme_factor = E / (E + 1.0)
-            growth = mu_max * enzyme_factor * monod * N_safe
-            dE = mu_max * E
-            return [growth, dE]
-        
-        t_span = (0.0, t_h[-1] if len(t_h) > 0 else 0.0)
-        if t_span[1] <= 0:
-            return np.array([n0])
-        
-        sol = solve_ivp(
-            rhs, t_span, [n0, E0],
-            t_eval=t_h,
-            method='LSODA',
-            rtol=1e-10, atol=1e-10,
-            max_step=0.02,
-        )
-        
-        if not sol.success:
-            # Fallback: logistic with lag shift
-            t_shift = t_h - lag
-            t_shift = np.maximum(t_shift, 0.0)
-            N_pred = K / (1 + (K/n0 - 1) * np.exp(-mu_max * t_shift))
-            return np.maximum(N_pred, 0.0)
-        
+        from scipy.integrate import solve_ivp
+        def rhs(t, z):
+            N = z[0]
+            S = z[1]
+            dN = mu * S/(K_s + S) * N
+            dS = -(1.0/Y) * dN
+            return [dN, dS]
+        z0 = [n0, s0]
+        sol = solve_ivp(rhs, [t_h[0], t_h[-1]], z0, t_eval=t_h, method='LSODA', rtol=1e-8, atol=1e-10)
         N = sol.y[0]
-        N = np.maximum(N, 0.0)
-        N = np.minimum(N, K * 1.01)
+        # Ensure finite and non-negative
+        N = np.maximum(N, 0)
         return N
 ```

@@ -9,8 +9,7 @@ from pathlib import Path
 
 from medusa import config
 from medusa.config import DEFAULT_LOOP_CONFIG, LoopConfig
-from medusa.data import build, fetch
-from medusa.data.synthetic import PRESETS
+from medusa.data import build, datasets, fetch
 
 
 def _cfg_from_args(args: argparse.Namespace) -> LoopConfig:
@@ -26,11 +25,16 @@ def _cfg_from_args(args: argparse.Namespace) -> LoopConfig:
 
 
 def _ensure_dataset(args: argparse.Namespace) -> build.Dataset:
+    name = getattr(args, "dataset", None)
+    if name:
+        print(f"building dataset '{name}'.")
+        return datasets.build_dataset(name, fit_frac=getattr(args, "fit_frac", 0.6))
     if config.OBSERVATIONS_PARQUET.exists() and not getattr(args, "rebuild", False):
         return build.load()
-    preset = getattr(args, "synthetic", None) or "synthetic-ecoli-fast"
-    print(f"No processed dataset found -- building synthetic '{preset}'.")
-    return build.build_synthetic(preset, fit_frac=getattr(args, "fit_frac", 0.6))
+    print("No processed dataset found -- building 'synthetic-ecoli-fast'.")
+    return datasets.build_dataset(
+        "synthetic-ecoli-fast", fit_frac=getattr(args, "fit_frac", 0.6)
+    )
 
 
 # --- subcommands ---------------------------------------------------------------
@@ -39,10 +43,9 @@ def _ensure_dataset(args: argparse.Namespace) -> build.Dataset:
 def cmd_build(args: argparse.Namespace) -> int:
     from medusa.harness.plots import sanity_plot
 
-    if args.synthetic:
-        ds = build.build_synthetic(args.synthetic, fit_frac=args.fit_frac)
-    else:
-        ds = build.build_synthetic("synthetic-ecoli-fast", fit_frac=args.fit_frac)
+    ds = datasets.build_dataset(
+        args.dataset or "synthetic-ecoli-fast", fit_frac=args.fit_frac
+    )
     out = config.PROCESSED_DIR / "sanity.png"
     sanity_plot(ds, out)
     print(f"dataset:        {ds.name}")
@@ -58,6 +61,11 @@ def cmd_build(args: argparse.Namespace) -> int:
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
+    if getattr(args, "dataset", None) == "ipb-ecoli":
+        path = fetch.fetch_ipb_ecoli()
+        print(f"downloaded: {path}")
+        print("now: uv run medusa build --dataset ipb-ecoli")
+        return 0
     fetch.print_instructions()
     return 0
 
@@ -130,14 +138,17 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="medusa", description=__doc__)
     sub = p.add_subparsers(dest="command", required=True)
 
-    presets = sorted(PRESETS)
+    names = datasets.list_datasets()
 
     b = sub.add_parser("build", help="build a dataset -> data/processed/")
-    b.add_argument("--synthetic", choices=presets, help="synthetic preset to build")
+    b.add_argument("--dataset", choices=names, metavar="NAME",
+                   help=f"dataset to build ({', '.join(names)})")
     b.add_argument("--fit-frac", type=float, default=0.6)
     b.set_defaults(func=cmd_build)
 
-    f = sub.add_parser("fetch", help="how to obtain a real public dataset")
+    f = sub.add_parser("fetch", help="download / explain a real public dataset")
+    f.add_argument("--dataset", choices=datasets.REAL_DATASETS, metavar="NAME",
+                   help="download this real dataset's raw file into data/raw/")
     f.set_defaults(func=cmd_fetch)
 
     def add_loop_args(sp: argparse.ArgumentParser) -> None:
@@ -152,7 +163,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     r = sub.add_parser("run", help="run the feedback loop on the processed dataset")
     add_loop_args(r)
-    r.add_argument("--synthetic", choices=presets, help="build+use this preset first")
+    r.add_argument("--dataset", choices=names, metavar="NAME",
+                   help="build + use this dataset instead of the processed one")
     r.add_argument("--rebuild", action="store_true")
     r.add_argument("--fit-frac", type=float, default=0.6)
     r.set_defaults(func=cmd_run)

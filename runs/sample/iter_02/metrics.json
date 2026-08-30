@@ -1,29 +1,27 @@
 {
-  "family": "baranyi-robust-fixed",
+  "family": "exponential",
   "params": {
-    "n0": 1.4402299460203012,
-    "mu_max": 1.9507880541321247,
-    "lag": 0.3491341306986382,
-    "carrying_capacity": 40427.285127163435
+    "n0": 101.12207388777907,
+    "mu_max": 0.728561137211569
   },
-  "n_params": 4,
+  "n_params": 2,
   "passed_checks": true,
   "crashed": false,
   "nondeterministic": false,
   "over_budget": false,
   "error": null,
   "checker_report": "OK",
-  "runtime_s": 0.9750222498551011,
+  "runtime_s": 0.0003267093561589718,
   "metrics": {
-    "holdout_smape": 0.0600007853386662,
-    "holdout_mase": 2.3951971026226357,
-    "holdout_log_rmse": 0.07803147896949314,
-    "fit_r2": 0.9906864283460348,
-    "fit_log_rmse": 0.2154894872248668,
-    "aic": -470.871063987954,
-    "implied_doubling_h": 0.35534120857507057,
+    "holdout_smape": 0.3378765050968087,
+    "holdout_mase": 48.09708400592208,
+    "holdout_log_rmse": 0.37485376507347645,
+    "fit_r2": 0.9635065099693414,
+    "fit_log_rmse": 0.057278683932753184,
+    "aic": -339.17920791536443,
+    "implied_doubling_h": 0.9513919219089423,
     "plausibility": 1.0
   },
   "is_valid": true,
-  "score": 0.0600007853386662
+  "score": 0.3378765050968087
 }

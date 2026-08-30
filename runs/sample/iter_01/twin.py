@@ -1,123 +1,129 @@
 import numpy as np
-from scipy.integrate import solve_ivp
-from scipy.optimize import differential_evolution
+from scipy.optimize import least_squares
 
 class Twin:
-    FAMILY = "baranyi-robust"
+    FAMILY = "logistic"
     
     PARAMS = {
-        "n0": (0.5, 100, "cells"),
-        "mu_max": (0.5, 3.5, "1/h"),
-        "lag": (0.0, 3.0, "h"),
-        "carrying_capacity": (1e3, 1e6, "cells"),
+        "n0":     (1.0, 1e4, "cells"),
+        "mu_max": (0.05, 3.0, "1/h"),
+        "carrying_capacity": (1e3, 1e8, "cells"),
     }
     
     METADATA = {
         "assumptions": [
-            "well-mixed", 
-            "single limiting nutrient",
-            "Baranyi-Roberts lag phase with adjustment function",
-            "log-normal multiplicative noise on observations"
+            "well-mixed",
+            "single limiting resource",
+            "logistic growth (density-dependent slowing)",
+            "no lag or death phase in window",
+            "counts are integer but modeled as continuous"
         ],
         "state_vars": ["N"],
-        "refs": ["Baranyi & Roberts 1994", "Buchanan et al. 1997"],
+        "refs": ["Verhulst 1838; Peleg & Corradini 2011"],
     }
     
-    def fit(self, obs):
+    def fit(self, obs) -> dict[str, float]:
         t_h = obs.time_s / 3600.0
         y = obs.population_count.astype(float)
-        # use log-space residuals to handle range of magnitudes
-        y_log = np.log(y + 1.0)
         
-        bounds = [
-            self.PARAMS["n0"][:2],
-            self.PARAMS["mu_max"][:2],
-            self.PARAMS["lag"][:2],
-            self.PARAMS["carrying_capacity"][:2],
-        ]
+        # Fit in log space to handle orders of magnitude
+        # Model: N(t) = K / (1 + (K/N0 - 1) * exp(-mu*t))
+        # We'll fit parameters n0, mu_max, K using least_squares on log(y)
         
-        def residuals(params):
-            n0, mu_max, lag, K = params
-            # clamp to bounds for safety
-            n0 = np.clip(n0, *self.PARAMS["n0"][:2])
-            mu_max = np.clip(mu_max, *self.PARAMS["mu_max"][:2])
-            lag = np.clip(lag, *self.PARAMS["lag"][:2])
-            K = np.clip(K, *self.PARAMS["carrying_capacity"][:2])
-            
-            p = {"n0": n0, "mu_max": mu_max, "lag": lag, "carrying_capacity": K}
-            try:
-                pred = self.predict(p, t_h * 3600.0)
-                pred = np.maximum(pred, 0.0)
-                pred_log = np.log(pred + 1.0)
-                return pred_log - y_log
-            except Exception:
-                return np.ones_like(y_log) * 1e6
+        # Initial guesses from data
+        n0_guess = y[0]
+        K_guess = max(y[-1] * 1.5, n0_guess * 2)
+        # Estimate mu from early exponential slope
+        early_mask = t_h < 0.5
+        if early_mask.sum() >= 3:
+            slope = np.polyfit(t_h[early_mask], np.log(y[early_mask]), 1)[0]
+            mu_guess = max(0.1, min(2.0, slope))
+        else:
+            mu_guess = 0.5
         
-        # differential evolution for global search, then refine with local
-        result = differential_evolution(
-            lambda p: np.sum(residuals(p)**2),
-            bounds,
-            seed=42,
-            maxiter=300,
-            popsize=15,
-            tol=1e-10,
-            polish=True,
-            workers=1,
-        )
+        # Bounds from PARAMS
+        n0_lo, n0_hi, _ = self.PARAMS["n0"]
+        mu_lo, mu_hi, _ = self.PARAMS["mu_max"]
+        K_lo, K_hi, _ = self.PARAMS["carrying_capacity"]
         
-        best = result.x
-        # ensure within bounds
-        best = np.clip(best, [b[0] for b in bounds], [b[1] for b in bounds])
+        # Use log-transform for parameters to keep them positive and bounded
+        # We'll optimize in unbounded space, then clip to bounds
+        p0 = np.array([
+            np.log(n0_guess - n0_lo + 1e-9),  # log-shift to keep > lo
+            np.log(mu_guess - mu_lo + 1e-9),
+            np.log(K_guess - K_lo + 1e-9),
+        ])
+        
+        def residual_logp(logp):
+            # Transform back
+            n0 = n0_lo + np.exp(logp[0])
+            mu = mu_lo + np.exp(logp[1])
+            K = K_lo + np.exp(logp[2])
+            # Clip to upper bounds
+            n0 = min(n0, n0_hi)
+            mu = min(mu, mu_hi)
+            K = min(K, K_hi)
+            # Predict
+            # Avoid overflow in exp(-mu*t)
+            exp_term = np.exp(-mu * t_h)
+            # Handle K/N0 - 1 potentially large
+            factor = (K / n0 - 1.0) * exp_term
+            # For numerical stability: if factor > 1e6, N ~ K * exp(mu*t)/ (K/n0-1) ~ n0*exp(mu*t)
+            # but we can just compute directly with np.expm1 for safety
+            denom = 1.0 + factor
+            # Avoid division by zero / negative
+            denom = np.maximum(denom, 1e-12)
+            N_pred = K / denom
+            # Log residual
+            return np.log(y) - np.log(N_pred + 1e-12)
+        
+        # Use least_squares with bounds on logp? We'll just use unconstrained and clip later.
+        res = least_squares(residual_logp, p0, method='lm', max_nfev=2000)
+        logp_opt = res.x
+        
+        n0 = n0_lo + np.exp(logp_opt[0])
+        mu = mu_lo + np.exp(logp_opt[1])
+        K = K_lo + np.exp(logp_opt[2])
+        
+        # Clip to hard bounds
+        n0 = float(np.clip(n0, n0_lo, n0_hi))
+        mu = float(np.clip(mu, mu_lo, mu_hi))
+        K = float(np.clip(K, K_lo, K_hi))
+        
+        # Refine with a direct bounded least_squares on the actual parameters
+        # (sometimes helps)
+        def residual(p):
+            n0, mu, K = p
+            exp_term = np.exp(-mu * t_h)
+            factor = (K / n0 - 1.0) * exp_term
+            denom = 1.0 + factor
+            denom = np.maximum(denom, 1e-12)
+            N_pred = K / denom
+            return np.log(y) - np.log(N_pred + 1e-12)
+        
+        p0_direct = np.array([n0, mu, K])
+        bounds = ([n0_lo, mu_lo, K_lo], [n0_hi, mu_hi, K_hi])
+        res2 = least_squares(residual, p0_direct, bounds=bounds, max_nfev=2000)
+        n0, mu, K = res2.x
         
         return {
-            "n0": best[0],
-            "mu_max": best[1],
-            "lag": best[2],
-            "carrying_capacity": best[3],
+            "n0": float(n0),
+            "mu_max": float(mu),
+            "carrying_capacity": float(K),
         }
     
-    def predict(self, params, time_s):
-        t_h = np.asarray(time_s, dtype=float) / 3600.0
+    def predict(self, params: dict, time_s: np.ndarray) -> np.ndarray:
         n0 = params["n0"]
-        mu_max = params["mu_max"]
-        lag = params["lag"]
+        mu = params["mu_max"]
         K = params["carrying_capacity"]
+        t_h = time_s / 3600.0
         
-        # Baranyi-Roberts model with adjustment function
-        # dN/dt = mu_max * alpha(t) * N * (1 - N/K)
-        # alpha(t) = 1/(1 + exp(-q(t))), q(t) = q0 - mu_max*t
-        # q0 = -mu_max * lag  (so alpha ~ 0 until t≈lag)
-        # But for simplicity, use explicit lag: alpha = 0 for t<lag, then 1
-        # More robust: use smooth transition via logistic
-        # alpha(t) = 1/(1 + exp(-(t-lag)*10))  # sharp but smooth
-        
-        # Use ODE integration for accuracy
-        def rhs(t, N):
-            # smooth adjustment function, sharp transition
-            alpha = 1.0 / (1.0 + np.exp(-(t - lag) * 20.0))
-            if N <= 0:
-                return 0.0
-            return mu_max * alpha * N * (1.0 - N / K)
-        
-        # integrate from t=0 to max time
-        t_span = (0.0, t_h[-1] if len(t_h) > 0 else 0.0)
-        if t_span[1] <= 0:
-            return np.array([n0])
-        
-        # use dense output for arbitrary times
-        sol = solve_ivp(
-            rhs, t_span, [n0], 
-            t_eval=t_h, 
-            method='LSODA',
-            rtol=1e-8, atol=1e-8,
-            max_step=0.05,
-        )
-        
-        if not sol.success:
-            # fallback: return constant
-            return np.full_like(t_h, n0)
-        
-        N = sol.y[0]
-        # ensure non-negative
+        # Logistic solution
+        exp_term = np.exp(-mu * t_h)
+        factor = (K / n0 - 1.0) * exp_term
+        denom = 1.0 + factor
+        denom = np.maximum(denom, 1e-12)
+        N = K / denom
+        # Ensure non-negative, finite
         N = np.maximum(N, 0.0)
         return N

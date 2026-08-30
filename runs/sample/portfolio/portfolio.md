@@ -1,25 +1,25 @@
-# Portfolio -- synthetic-ecoli-fast
+# Portfolio -- ipb-ecoli
 
-## 1. baranyi-robust-fixed  (iteration 2)
+## 1. two-stage-lag-adaptation  (iteration 6)
 
-- holdout sMAPE: **0.0600**
-- holdout MASE: 2.395
-- fit R^2: 0.9907
-- implied doubling time: 0.36 h (plausibility 1.00)
-- parameters: `{"n0": 1.4402299460203012, "mu_max": 1.9507880541321247, "lag": 0.3491341306986382, "carrying_capacity": 40427.285127163435}`
+- holdout sMAPE: **0.0180**
+- holdout MASE: 2.926
+- fit R^2: 0.9954
+- implied doubling time: 0.50 h (plausibility 1.00)
+- parameters: `{"n0": 107.7696637671037, "mu_max": 1.3765646493772674, "lag_time": 0.4704084266120097, "adapt_rate": 0.29817270501757837, "q0": 0.9890705462050661}`
 
-## 2. two-reservoir-monod  (iteration 5)
+## 2. baranyi-adaptation  (iteration 7)
 
-- holdout sMAPE: **0.0964**
-- holdout MASE: 3.756
-- fit R^2: 0.9857
-- implied doubling time: 0.36 h (plausibility 1.00)
-- parameters: `{"n0": 2.102819189271354, "mu_max": 3.4999999999999996, "lag": 0.5200553370519843, "carrying_capacity": 36180.999307143, "k_s": 30091.922025656735}`
+- holdout sMAPE: **0.0193**
+- holdout MASE: 3.140
+- fit R^2: 0.9954
+- implied doubling time: 0.50 h (plausibility 1.00)
+- parameters: `{"n0": 107.45213188794223, "mu_max": 1.386629134464886, "lag_time": 0.4896545931583436, "adapt_rate": 0.2833470292270255}`
 
-## 3. monod-substrate  (iteration 3)
+## 3. two-stage-lag  (iteration 4)
 
-- holdout sMAPE: **0.1584**
-- holdout MASE: 5.942
-- fit R^2: 0.9551
-- implied doubling time: 0.37 h (plausibility 1.00)
-- parameters: `{"n0": 0.8900723494464913, "mu_max": 1.8599677921930562, "ks": 9.999993919916005, "yield": 0.0003377582841237281, "s0": 100000000.0}`
+- holdout sMAPE: **0.0342**
+- holdout MASE: 6.125
+- fit R^2: 0.9946
+- implied doubling time: 0.54 h (plausibility 1.00)
+- parameters: `{"n0": 117.09875698489064, "mu_max": 1.2761179163406025, "lag": 1.1580880522171272e-14, "k": 1.2608178530634173}`
