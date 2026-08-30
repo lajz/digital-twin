@@ -1,0 +1,28 @@
+{
+  "family": "logistic",
+  "params": {
+    "n0": 1.0000000000000002,
+    "mu_max": 1.859620589129036,
+    "carrying_capacity": 42940.60697521882
+  },
+  "n_params": 3,
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 0.001772083342075348,
+  "metrics": {
+    "holdout_smape": 0.09295847613327864,
+    "holdout_mase": 3.781192992458393,
+    "holdout_log_rmse": 0.10997451917944466,
+    "fit_r2": 0.9855801175188379,
+    "fit_log_rmse": 0.24502315429909755,
+    "aic": -432.797600454624,
+    "implied_doubling_h": 0.37274473455983526,
+    "plausibility": 1.0
+  },
+  "is_valid": true,
+  "score": 0.09295847613327864
+}

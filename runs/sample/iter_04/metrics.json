@@ -1,0 +1,29 @@
+{
+  "family": "richards",
+  "params": {
+    "carrying_capacity": 38028.15223444709,
+    "nu": 1.3147234662994243,
+    "mu_max": 2.496165084253447,
+    "t_infl": 5.541608330679521
+  },
+  "n_params": 4,
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 0.0022020828910171986,
+  "metrics": {
+    "holdout_smape": 0.06598338140294871,
+    "holdout_mase": 2.62348981714635,
+    "holdout_log_rmse": 0.08486423518635834,
+    "fit_r2": 0.9903292284889652,
+    "fit_log_rmse": 0.2238662880461785,
+    "aic": -458.9723761222125,
+    "implied_doubling_h": 0.3650790475126623,
+    "plausibility": 1.0
+  },
+  "is_valid": true,
+  "score": 0.06598338140294871
+}

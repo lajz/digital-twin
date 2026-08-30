@@ -1,0 +1,23 @@
+{
+  "dataset": "synthetic-ecoli-fast",
+  "started": "20260830-004805",
+  "dry_run": true,
+  "split": {
+    "fit_frac": 0.6,
+    "t_split_s": 28080.0,
+    "n_fit": 156,
+    "n_holdout": 105,
+    "t_start_s": 0.0,
+    "t_end_s": 46800.0,
+    "dataset": "synthetic-ecoli-fast",
+    "ground_truth": {
+      "doubling_time_h": 0.34657359027997264,
+      "td_plausible_h": [
+        0.2079,
+        0.5545
+      ],
+      "carrying_capacity": 40000.0,
+      "lag_h": 0.6
+    }
+  }
+}

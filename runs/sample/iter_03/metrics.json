@@ -1,0 +1,29 @@
+{
+  "family": "baranyi-ode",
+  "params": {
+    "n0": 1.12289507303528,
+    "q0": 1.3594072747682648,
+    "mu_max": 1.9820810731422331,
+    "nmax": 39791.71367294471
+  },
+  "n_params": 4,
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 0.03161212522536516,
+  "metrics": {
+    "holdout_smape": 0.05789724651591618,
+    "holdout_mase": 2.3101181586088084,
+    "holdout_log_rmse": 0.0753851801388152,
+    "fit_r2": 0.9911161837836152,
+    "fit_log_rmse": 0.2158376198103676,
+    "aic": -470.36742121433457,
+    "implied_doubling_h": 0.35213479223345107,
+    "plausibility": 1.0
+  },
+  "is_valid": true,
+  "score": 0.05789724651591618
+}

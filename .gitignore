@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+
+# medusa -- generated artifacts
+data/
+runs/*
+!runs/sample/
+.env

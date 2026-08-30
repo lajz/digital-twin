@@ -1,0 +1,174 @@
+{
+  "best_score": 0.05789724651591618,
+  "distinct_valid_families": 4,
+  "portfolio": [
+    {
+      "iteration": 3,
+      "family": "baranyi-ode",
+      "score": 0.05789724651591618,
+      "is_valid": true,
+      "n_params": 4,
+      "metrics": {
+        "holdout_smape": 0.05789724651591618,
+        "holdout_mase": 2.3101181586088084,
+        "holdout_log_rmse": 0.0753851801388152,
+        "fit_r2": 0.9911161837836152,
+        "fit_log_rmse": 0.2158376198103676,
+        "aic": -470.36742121433457,
+        "implied_doubling_h": 0.35213479223345107,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 1.12289507303528,
+        "q0": 1.3594072747682648,
+        "mu_max": 1.9820810731422331,
+        "nmax": 39791.71367294471
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 4,
+      "family": "richards",
+      "score": 0.06598338140294871,
+      "is_valid": true,
+      "n_params": 4,
+      "metrics": {
+        "holdout_smape": 0.06598338140294871,
+        "holdout_mase": 2.62348981714635,
+        "holdout_log_rmse": 0.08486423518635834,
+        "fit_r2": 0.9903292284889652,
+        "fit_log_rmse": 0.2238662880461785,
+        "aic": -458.9723761222125,
+        "implied_doubling_h": 0.3650790475126623,
+        "plausibility": 1.0
+      },
+      "params": {
+        "carrying_capacity": 38028.15223444709,
+        "nu": 1.3147234662994243,
+        "mu_max": 2.496165084253447,
+        "t_infl": 5.541608330679521
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 1,
+      "family": "logistic",
+      "score": 0.09295847613327864,
+      "is_valid": true,
+      "n_params": 3,
+      "metrics": {
+        "holdout_smape": 0.09295847613327864,
+        "holdout_mase": 3.781192992458393,
+        "holdout_log_rmse": 0.10997451917944466,
+        "fit_r2": 0.9855801175188379,
+        "fit_log_rmse": 0.24502315429909755,
+        "aic": -432.797600454624,
+        "implied_doubling_h": 0.37274473455983526,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 1.0000000000000002,
+        "mu_max": 1.859620589129036,
+        "carrying_capacity": 42940.60697521882
+      },
+      "status": "ok"
+    }
+  ],
+  "leaderboard": [
+    {
+      "iteration": 3,
+      "family": "baranyi-ode",
+      "score": 0.05789724651591618,
+      "is_valid": true,
+      "n_params": 4,
+      "metrics": {
+        "holdout_smape": 0.05789724651591618,
+        "holdout_mase": 2.3101181586088084,
+        "holdout_log_rmse": 0.0753851801388152,
+        "fit_r2": 0.9911161837836152,
+        "fit_log_rmse": 0.2158376198103676,
+        "aic": -470.36742121433457,
+        "implied_doubling_h": 0.35213479223345107,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 1.12289507303528,
+        "q0": 1.3594072747682648,
+        "mu_max": 1.9820810731422331,
+        "nmax": 39791.71367294471
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 4,
+      "family": "richards",
+      "score": 0.06598338140294871,
+      "is_valid": true,
+      "n_params": 4,
+      "metrics": {
+        "holdout_smape": 0.06598338140294871,
+        "holdout_mase": 2.62348981714635,
+        "holdout_log_rmse": 0.08486423518635834,
+        "fit_r2": 0.9903292284889652,
+        "fit_log_rmse": 0.2238662880461785,
+        "aic": -458.9723761222125,
+        "implied_doubling_h": 0.3650790475126623,
+        "plausibility": 1.0
+      },
+      "params": {
+        "carrying_capacity": 38028.15223444709,
+        "nu": 1.3147234662994243,
+        "mu_max": 2.496165084253447,
+        "t_infl": 5.541608330679521
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 1,
+      "family": "logistic",
+      "score": 0.09295847613327864,
+      "is_valid": true,
+      "n_params": 3,
+      "metrics": {
+        "holdout_smape": 0.09295847613327864,
+        "holdout_mase": 3.781192992458393,
+        "holdout_log_rmse": 0.10997451917944466,
+        "fit_r2": 0.9855801175188379,
+        "fit_log_rmse": 0.24502315429909755,
+        "aic": -432.797600454624,
+        "implied_doubling_h": 0.37274473455983526,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 1.0000000000000002,
+        "mu_max": 1.859620589129036,
+        "carrying_capacity": 42940.60697521882
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 2,
+      "family": "gompertz",
+      "score": 0.7768269792494029,
+      "is_valid": true,
+      "n_params": 4,
+      "metrics": {
+        "holdout_smape": 0.7768269792494029,
+        "holdout_mase": 52.2442114113481,
+        "holdout_log_rmse": 0.8496840474742855,
+        "fit_r2": 0.9059007790704628,
+        "fit_log_rmse": 0.27875043890525875,
+        "aic": -390.5607750782428,
+        "implied_doubling_h": 0.3117514378661397,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 1.000000000000004,
+        "a": 11.650345027529157,
+        "mu_max": 2.22344626188231,
+        "lag": 0.44273772779647913
+      },
+      "status": "ok"
+    }
+  ]
+}

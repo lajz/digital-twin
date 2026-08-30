@@ -1,0 +1,29 @@
+{
+  "family": "gompertz",
+  "params": {
+    "n0": 1.000000000000004,
+    "a": 11.650345027529157,
+    "mu_max": 2.22344626188231,
+    "lag": 0.44273772779647913
+  },
+  "n_params": 4,
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 0.0019413749687373638,
+  "metrics": {
+    "holdout_smape": 0.7768269792494029,
+    "holdout_mase": 52.2442114113481,
+    "holdout_log_rmse": 0.8496840474742855,
+    "fit_r2": 0.9059007790704628,
+    "fit_log_rmse": 0.27875043890525875,
+    "aic": -390.5607750782428,
+    "implied_doubling_h": 0.3117514378661397,
+    "plausibility": 1.0
+  },
+  "is_valid": true,
+  "score": 0.7768269792494029
+}

@@ -1,0 +1,14 @@
+{
+  "dataset": "synthetic-ecoli-fast",
+  "n_iters": 4,
+  "best_holdout_smape": 0.05789724651591618,
+  "iters_to_target": 1,
+  "distinct_plausible_families": 4,
+  "valid_rate": 1.0,
+  "candidate_crash_rate": 0.0,
+  "improvement_auc": 0.9245721386754026,
+  "total_prompt_tokens": 6955,
+  "total_response_tokens": 1597,
+  "usd_cost": 0.00261814,
+  "wall_s_total": 0.03752766642719507
+}

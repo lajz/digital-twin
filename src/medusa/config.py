@@ -1,0 +1,95 @@
+"""Paths, environment loading, and the single source of loop configuration.
+
+`LoopConfig` holds *every* tunable knob for the feedback loop. `agent/loop.py` reads
+only from a `LoopConfig` instance -- it contains no literals of its own -- so a future
+meta-loop (Milestone 7) can mutate a config and re-run the loop without touching code.
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import json
+import os
+from pathlib import Path
+
+from medusa import prompts
+
+# --- paths -------------------------------------------------------------------
+
+PKG_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = PKG_ROOT.parents[1]
+DATA_DIR = REPO_ROOT / "data"
+RAW_DIR = DATA_DIR / "raw"
+PROCESSED_DIR = DATA_DIR / "processed"
+RUNS_DIR = REPO_ROOT / "runs"
+
+OBSERVATIONS_PARQUET = PROCESSED_DIR / "observations.parquet"
+SPLIT_JSON = PROCESSED_DIR / "split.json"
+DATASHEET_MD = DATA_DIR / "datasheet.md"
+
+
+def load_dotenv(path: Path | None = None) -> None:
+    """Minimal .env loader (KEY=VALUE lines). Does not overwrite existing env vars."""
+    path = path or (REPO_ROOT / ".env")
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+# --- API / pricing ---------------------------------------------------------------
+
+DEEPSEEK_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+DEEPSEEK_API_KEY_ENV = "DEEPSEEK_API_KEY"
+
+# Placeholder USD prices per 1M tokens for cost accounting in the scorecard.
+# deepseek-chat/deepseek-reasoner aliases retired 2026-07-24; v4-flash is the cheap tier.
+# Override with DEEPSEEK_PRICE_IN / DEEPSEEK_PRICE_OUT once exact numbers are confirmed.
+PRICE_PER_MTOK_IN = float(os.environ.get("DEEPSEEK_PRICE_IN", "0.28"))
+PRICE_PER_MTOK_OUT = float(os.environ.get("DEEPSEEK_PRICE_OUT", "0.42"))
+
+
+# --- the loop configuration ----------------------------------------------------
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class LoopConfig:
+    """Every knob the feedback loop can turn. Serializable for the meta-loop."""
+
+    # model
+    model: str = "deepseek-v4-flash"
+    temperature: float = 0.7
+    thinking: bool = False
+    max_response_tokens: int = 8000
+
+    # loop control
+    max_iters: int = 20
+    target_smape: float = 0.10
+    min_families: int = 3
+    plateau_patience: int = 4  # stop if best score unimproved this many iters (after target)
+
+    # prompt shaping
+    system_prompt: str = prompts.SYSTEM_PROMPT
+    iteration_template: str = prompts.ITERATION_TEMPLATE
+    diversity_nudge_every: int = 3  # every Nth iter, push for an unexplored family
+    context_obs_max_points: int = 60  # downsample fit-window table to <= this many rows
+    archive_summary_top_k: int = 6  # families to describe back to the agent
+
+    # harness
+    candidate_timeout_s: float = 20.0
+    twin_runtime_budget_s: float = 5.0
+
+    def to_json(self) -> str:
+        return json.dumps(dataclasses.asdict(self), indent=2, sort_keys=True)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "LoopConfig":
+        fields = {f.name for f in dataclasses.fields(cls)}
+        return cls(**{k: v for k, v in d.items() if k in fields})
+
+
+DEFAULT_LOOP_CONFIG = LoopConfig()
