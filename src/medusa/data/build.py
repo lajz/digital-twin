@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from medusa import config
-from medusa.contract.interface import Observations
+from medusa.contract.interface import POPULATION_TASK, Observations, Task
 from medusa.data import synthetic
 
 
@@ -27,6 +27,9 @@ class Dataset:
     holdout: Observations
     split: dict
     datasheet: str
+    task: Task = POPULATION_TASK
+    # for spatial datasets: path to the real per-frame rod configurations (npz)
+    frames_npz: Path | None = None
 
 
 def make_split(obs: Observations, fit_frac: float = 0.6) -> dict:
@@ -63,6 +66,8 @@ def write(
     name: str,
     ground_truth: dict | None = None,
     fit_frac: float = 0.6,
+    task: Task = POPULATION_TASK,
+    frames_npz: Path | None = None,
     processed_dir: Path | None = None,
     datasheet_path: Path | None = None,
 ) -> Dataset:
@@ -74,12 +79,13 @@ def write(
     split = make_split(obs, fit_frac)
     split["dataset"] = name
     split["ground_truth"] = ground_truth or {}
+    split["task"] = task.to_dict()
     obs.to_parquet(processed_dir / "observations.parquet")
     (processed_dir / "split.json").write_text(json.dumps(split, indent=2))
     datasheet_path.write_text(datasheet)
 
     fit, holdout = split_observations(obs, split)
-    return Dataset(name, obs, fit, holdout, split, datasheet)
+    return Dataset(name, obs, fit, holdout, split, datasheet, task, frames_npz)
 
 
 def build_synthetic(preset_name: str, *, fit_frac: float = 0.6, **kw) -> Dataset:
@@ -112,4 +118,9 @@ def load(
     split = json.loads((processed_dir / "split.json").read_text())
     fit, holdout = split_observations(obs, split)
     datasheet = datasheet_path.read_text() if datasheet_path.exists() else ""
-    return Dataset(split.get("dataset", "unknown"), obs, fit, holdout, split, datasheet)
+    task = Task.from_dict(split["task"]) if "task" in split else POPULATION_TASK
+    npz = processed_dir / "frames.npz"
+    return Dataset(
+        split.get("dataset", "unknown"), obs, fit, holdout, split, datasheet, task,
+        npz if npz.exists() else None,
+    )

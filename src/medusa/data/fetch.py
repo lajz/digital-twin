@@ -68,7 +68,8 @@ def reduce_csv(
     else:
         times = (times - times.min()) * scale
 
-    return Observations(time_s=times, population_count=counts, total_area_um2=areas)
+    extra = {} if areas is None else {"total_area_um2": np.asarray(areas, float)}
+    return Observations(time_s=times, population_count=counts, extra=extra)
 
 
 def build_from_raw(
@@ -138,7 +139,7 @@ def build_ipb_ecoli(*, fit_frac: float = 0.6, **kw) -> build.Dataset:
     df = pd.read_csv(csv_path).sort_values("ImageNumber")
     counts = df["Count_FilterObjects"].to_numpy(dtype=float)
     time_s = (df["ImageNumber"].to_numpy(dtype=float) - 1.0) * IPB_ECOLI_FRAME_INTERVAL_S
-    obs = Observations(time_s=time_s, population_count=counts, total_area_um2=None)
+    obs = Observations(time_s=time_s, population_count=counts)
 
     ground_truth = {
         "doubling_time_h": None,
@@ -148,6 +149,137 @@ def build_ipb_ecoli(*, fit_frac: float = 0.6, **kw) -> build.Dataset:
     return build.write(
         obs, IPB_ECOLI_DATASHEET, name="ipb-ecoli", ground_truth=ground_truth,
         fit_frac=fit_frac, **kw,
+    )
+
+
+# --- L1 structured: size-distribution summaries for the same E. coli movie ---------
+
+IPB_ECOLI_STRUCTURED_DATASHEET = """\
+# Datasheet: ipb-ecoli-structured (L1)
+
+Same movie as `ipb-ecoli`, reduced from the per-object table `FilterObjects.csv` to a
+size-structured signal: per frame, cell count, summed rod length (biomass proxy), mean
+single-cell length, and the length coefficient of variation.
+
+- **Organism:** E. coli K-12 monolayer microcolony, agar pad. 100 frames at 90 s.
+- **Pixel size:** self-calibrated from median cell width == ~1.0 um (~{px:.3f} um/px).
+- **Scored channels:** total_length_um, population_count, mean_length_um, length_cv.
+- Mean cell length runs ~3.5 -> 4.3 -> 4.0 um (a non-monotone bump a count-only model
+  cannot explain); length CV stays ~0.28-0.31.
+- Plausible doubling time (E. coli, agar pad): [0.33, 1.5] h; mean length [1, 12] um.
+"""
+
+
+def build_ipb_ecoli_structured(
+    *, fit_frac: float = 0.6, processed_dir=None, datasheet_path=None
+) -> build.Dataset:
+    from medusa.contract.interface import STRUCTURED_TASK
+
+    csv_path = config.RAW_DIR / IPB_ECOLI_OBJECTS_RAW
+    if not csv_path.exists():
+        csv_path = fetch_ipb_ecoli_objects()
+    df = pd.read_csv(csv_path)
+    px_um = 1.0 / float(df["AreaShape_MinorAxisLength"].median())
+    df["len_um"] = df["AreaShape_MajorAxisLength"] * px_um
+    g = df.groupby("ImageNumber")
+    times = (np.array(sorted(df["ImageNumber"].unique()), float) - 1.0) * IPB_ECOLI_FRAME_INTERVAL_S
+    obs = Observations(
+        time_s=times,
+        population_count=g.size().to_numpy(float),
+        extra={
+            "total_length_um": g["len_um"].sum().to_numpy(float),
+            "mean_length_um": g["len_um"].mean().to_numpy(float),
+            "length_cv": (g["len_um"].std() / g["len_um"].mean()).to_numpy(float),
+        },
+    )
+    ground_truth = {"td_plausible_h": [0.33, 1.5], "px_um": px_um}
+    return build.write(
+        obs, IPB_ECOLI_STRUCTURED_DATASHEET.format(px=px_um), name="ipb-ecoli-structured",
+        ground_truth=ground_truth, fit_frac=fit_frac, task=STRUCTURED_TASK,
+        processed_dir=processed_dir, datasheet_path=datasheet_path,
+    )
+
+
+# --- L2 spatial: per-cell rod configurations for the same E. coli movie -----------
+
+IPB_ECOLI_OBJECTS_CSV = (
+    f"{_IPB_BASE}/CellProfiler-Omnipose/E.coli-larger-dataset/FilterObjects.csv"
+)
+IPB_ECOLI_OBJECTS_RAW = "ipb_ecoli_cpomnipose_objects.csv"
+
+IPB_ECOLI_SPATIAL_DATASHEET = """\
+# Datasheet: ipb-ecoli-spatial (L2)
+
+- **Source:** same movie as `ipb-ecoli` (Ahmadi et al. 2024,
+  github.com/ingallslab/ImageProcessing-Benchmarking, CC-BY 4.0), but the per-object
+  table `FilterObjects.csv` -- one row per segmented cell per frame.
+- **Organism:** E. coli K-12 monolayer microcolony on an agar pad.
+- **Frames:** 100 at 90 s. **Per-cell fields used:** `Location_Center_X/Y`,
+  `AreaShape_Orientation`, `AreaShape_MajorAxisLength` (length),
+  `AreaShape_MinorAxisLength` (width).
+- **Pixel size:** self-calibrated -- E. coli width is tightly regulated at ~1.0 um, so
+  1 px = 1.0 / median(MinorAxisLength_px) um (~0.12 um/px here).
+- **What the twin sees:** the fit-window frames for calibration, and the *first* frame
+  as the simulation's initial condition. It is scored on spatial summary-statistic time
+  series over the holdout window only: cell count, total rod length, radius of gyration,
+  colony aspect ratio, nematic order, mean nearest-neighbour distance.
+- **Caveat:** automated segmentation, not manual ground truth; positions/orientations
+  carry a few-percent error.
+- Plausible doubling time (E. coli, agar pad): [0.33, 1.5] h.
+"""
+
+
+def fetch_ipb_ecoli_objects(dest_dir: Path | None = None) -> Path:
+    import urllib.request
+
+    dest_dir = dest_dir or config.RAW_DIR
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / IPB_ECOLI_OBJECTS_RAW
+    if not dest.exists():
+        urllib.request.urlretrieve(IPB_ECOLI_OBJECTS_CSV, dest)  # noqa: S310
+    return dest
+
+
+def build_ipb_ecoli_spatial(
+    *, fit_frac: float = 0.6, processed_dir=None, datasheet_path=None
+) -> build.Dataset:
+    from medusa.contract.interface import SPATIAL_TASK
+    from medusa.spatial.frames import CellFrame, SpatialFrames
+    from medusa.spatial.summarize import summary_series
+
+    processed_dir = Path(processed_dir) if processed_dir else config.PROCESSED_DIR
+    processed_dir.mkdir(parents=True, exist_ok=True)
+
+    csv_path = config.RAW_DIR / IPB_ECOLI_OBJECTS_RAW
+    if not csv_path.exists():
+        csv_path = fetch_ipb_ecoli_objects()
+    df = pd.read_csv(csv_path)
+
+    px_um = 1.0 / float(df["AreaShape_MinorAxisLength"].median())
+    df = df.sort_values(["ImageNumber", "ObjectNumber"])
+    frames, times = [], []
+    for img, g in df.groupby("ImageNumber"):
+        frames.append(
+            CellFrame(
+                x=g["Location_Center_X"].to_numpy(float) * px_um,
+                y=g["Location_Center_Y"].to_numpy(float) * px_um,
+                angle=np.deg2rad(g["AreaShape_Orientation"].to_numpy(float)),
+                length=g["AreaShape_MajorAxisLength"].to_numpy(float) * px_um,
+                width=g["AreaShape_MinorAxisLength"].to_numpy(float) * px_um,
+            )
+        )
+        times.append((int(img) - 1) * IPB_ECOLI_FRAME_INTERVAL_S)
+    sf = SpatialFrames(np.array(times, float), frames,
+                       meta={"px_um": f"{px_um:.5f}", "organism": "E. coli"})
+    sf.to_npz(processed_dir / "frames.npz")
+
+    obs = summary_series(sf)
+    ground_truth = {"td_plausible_h": [0.33, 1.5], "px_um": px_um}
+    return build.write(
+        obs, IPB_ECOLI_SPATIAL_DATASHEET, name="ipb-ecoli-spatial",
+        ground_truth=ground_truth, fit_frac=fit_frac, task=SPATIAL_TASK,
+        frames_npz=processed_dir / "frames.npz",
+        processed_dir=processed_dir, datasheet_path=datasheet_path,
     )
 
 

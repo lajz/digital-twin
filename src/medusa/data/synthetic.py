@@ -99,7 +99,9 @@ def generate(preset: SyntheticPreset) -> Observations:
     mean_area = 3.0 * (1.0 - 0.15 * true_counts / preset.carrying_capacity)
     total_area = noisy * mean_area
 
-    return Observations(time_s=t_s, population_count=noisy, total_area_um2=total_area)
+    return Observations(
+        time_s=t_s, population_count=noisy, extra={"total_area_um2": total_area}
+    )
 
 
 def datasheet(preset: SyntheticPreset) -> str:

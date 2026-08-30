@@ -56,14 +56,50 @@ def implied_doubling_time_h(
     """Max instantaneous doubling time implied by the model over an early window."""
     t_s = np.linspace(0.0, horizon_h * 3600.0, points)
     y = np.asarray(predict_fn(params, t_s), dtype=float)
-    y = np.clip(y, 1e-9, None)
-    ln_y = np.log(y)
-    dt_h = np.diff(t_s) / 3600.0
-    mu = np.diff(ln_y) / dt_h  # per hour
+    return doubling_time_from_series_h(t_s, y)
+
+
+def doubling_time_from_series_h(time_s: np.ndarray, y: np.ndarray) -> float:
+    """Fastest doubling time implied by a monotone-ish count/biomass series."""
+    t_h = np.asarray(time_s, dtype=float) / 3600.0
+    y = np.clip(np.asarray(y, dtype=float), 1e-9, None)
+    if t_h.size < 3:
+        return float("inf")
+    mu = np.diff(np.log(y)) / np.clip(np.diff(t_h), 1e-9, None)  # per hour
     mu_max = float(np.max(mu)) if mu.size else 0.0
     if mu_max <= 1e-6:
         return float("inf")
     return float(np.log(2.0) / mu_max)
+
+
+def multi_smape(
+    predicted: dict[str, np.ndarray],
+    observed,
+    observables: tuple[str, ...],
+    task,
+) -> tuple[float, dict[str, float]]:
+    """Weighted mean of per-channel sMAPE over the scored observables.
+
+    Returns (combined, per_channel). Missing/unusable channels score as 2.0 (max).
+    """
+    per: dict[str, float] = {}
+    for name in observables:
+        try:
+            truth = observed.channel(name)
+        except KeyError:
+            continue
+        pred = predicted.get(name)
+        if pred is None or np.asarray(pred).shape != truth.shape or not np.all(
+            np.isfinite(np.asarray(pred, dtype=float))
+        ):
+            per[name] = 2.0
+        else:
+            per[name] = smape(truth, np.asarray(pred, dtype=float))
+    if not per:
+        return float("inf"), per
+    wsum = sum(task.weight(k) for k in per)
+    combined = sum(task.weight(k) * v for k, v in per.items()) / max(wsum, 1e-9)
+    return float(combined), per
 
 
 def plausibility(value: float, lo: float, hi: float) -> float:

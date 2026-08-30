@@ -7,9 +7,18 @@ own calibration code, a deterministic harness scores that model against real
 observational data, and the score feeds back into the next iteration. Over many rounds
 the loop returns a **ranked portfolio of distinct model families**.
 
-**Demo #1** (this repo) twins the simplest real system: a well-mixed single-cell
-microbial population — a bacterial growth curve — from public microscopy time-lapse data
-reduced to `population_count` over time.
+It twins a real *E. coli* microcolony from public microscopy time-lapse data, at three
+levels of fidelity:
+
+| level | dataset | twin state | scored on |
+|---|---|---|---|
+| **L0** population | `ipb-ecoli` | scalar `N(t)` | count vs time |
+| **L1** size-structured | `ipb-ecoli-structured` | cell-size distribution | count, biomass, mean length, length CV |
+| **L2** spatial | `ipb-ecoli-spatial` | every cell a rod `(x, y, θ, ℓ)` | count, biomass, radius of gyration, aspect, nematic order, nearest-neighbour distance — **plus side-by-side renders of the twin vs reality** |
+
+Model fidelity has to match data fidelity: each level feeds the agent more of the
+microscopy and asks for a more mechanistic model (growth law → elongation + division →
+elongation + division + mechanics).
 
 ```
 prompt ──▶ DeepSeek v4-flash ──▶ twin.py ──▶ harness (sandbox + score) ──▶ feedback
@@ -22,21 +31,21 @@ prompt ──▶ DeepSeek v4-flash ──▶ twin.py ──▶ harness (sandbox 
 ```bash
 uv sync
 
-# build a dataset -> data/processed/  (synthetic by default; see "Real data" below)
-uv run medusa build
-
 # exercise the whole loop with canned twins -- no API key, no cost
 uv run medusa run --dry-run --iters 4
 
-# real run (needs DEEPSEEK_API_KEY in .env or the environment)
-uv run medusa run --iters 20
+# real runs (need DEEPSEEK_API_KEY in .env or the environment)
+uv run medusa run --dataset ipb-ecoli          --iters 12   # L0
+uv run medusa run --dataset ipb-ecoli-structured --iters 12  # L1
+uv run medusa run --dataset ipb-ecoli-spatial  --iters 10    # L2  -> runs/<ts>/demo.html
 
-# score the loop itself across the benchmark suite
-uv run medusa bench --dry-run
-
-# reprint the latest run's scorecard + portfolio
-uv run medusa report
+uv run medusa bench --dry-run        # score the loop itself across the suite
+uv run medusa report                 # reprint the latest run's scorecard + portfolio
 ```
+
+Every run writes `runs/<ts>/demo.html` — a self-contained page that scrubs through the
+training iterations showing the twin's forecast (L0/L1) or its rollout beside the real
+microscopy (L2).
 
 Output lands in `runs/<timestamp>-<dataset>/`:
 

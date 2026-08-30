@@ -19,6 +19,7 @@ class ArchiveEntry:
     metrics: dict
     params: dict | None
     status: str  # "ok" | short failure reason
+    per_observable: dict = dataclasses.field(default_factory=dict)
 
     @classmethod
     def from_eval(cls, iteration: int, res: EvalResult) -> "ArchiveEntry":
@@ -43,6 +44,7 @@ class ArchiveEntry:
             metrics=dict(res.metrics),
             params=res.params,
             status=status,
+            per_observable=dict(res.per_observable),
         )
 
     def to_dict(self) -> dict:

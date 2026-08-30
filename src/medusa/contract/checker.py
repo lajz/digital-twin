@@ -9,7 +9,6 @@ from medusa.contract.interface import (
     ALLOWED_IMPORT_ROOTS,
     FORBIDDEN_IMPORT_ROOTS,
     PARAM_TRIPLE_LEN,
-    REQUIRED_TWIN_ATTRS,
 )
 
 _FORBIDDEN_CALLS = {"eval", "exec", "compile", "__import__", "open", "input", "globals"}
@@ -45,7 +44,9 @@ def _import_roots(node: ast.Import | ast.ImportFrom) -> list[str]:
     return [(node.module or "").split(".")[0]]
 
 
-def check_twin_source(source: str) -> CheckResult:
+def check_twin_source(
+    source: str, required_methods: tuple[str, ...] = ("fit", "predict")
+) -> CheckResult:
     """Static checks: parseable, import allowlist, no dangerous builtins, has `class Twin`."""
     errors: list[str] = []
     warnings: list[str] = []
@@ -89,19 +90,23 @@ def check_twin_source(source: str) -> CheckResult:
         for attr in ("FAMILY", "PARAMS"):
             if attr not in assigned:
                 errors.append(f"Twin is missing class attribute {attr!r}")
-        for meth in ("fit", "predict"):
+        for meth in required_methods:
             if meth not in methods:
                 errors.append(f"Twin is missing method {meth!r}")
 
     return CheckResult(ok=not errors, errors=errors, warnings=warnings)
 
 
-def check_twin_object(twin: object, params: dict | None = None) -> CheckResult:
+def check_twin_object(
+    twin: object,
+    params: dict | None = None,
+    required_methods: tuple[str, ...] = ("fit", "predict"),
+) -> CheckResult:
     """Runtime checks on an instantiated Twin (and optionally a fitted param dict)."""
     errors: list[str] = []
     warnings: list[str] = []
 
-    for attr in REQUIRED_TWIN_ATTRS:
+    for attr in ("FAMILY", "PARAMS", *required_methods):
         if not hasattr(twin, attr):
             errors.append(f"Twin instance has no attribute {attr!r}")
     if errors:
@@ -131,7 +136,7 @@ def check_twin_object(twin: object, params: dict | None = None) -> CheckResult:
         if not isinstance(unit, str) or not unit:
             warnings.append(f"PARAMS[{name!r}] unit should be a non-empty string")
 
-    for meth in ("fit", "predict"):
+    for meth in required_methods:
         if not callable(getattr(twin, meth, None)):
             errors.append(f"Twin.{meth} is not callable")
 

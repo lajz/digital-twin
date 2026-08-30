@@ -90,7 +90,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"est. cost:               ${sc.usd_cost:.4f}")
     print(f"\nportfolio: {result.run_dir / 'portfolio' / 'portfolio.md'}")
     for e in result.archive.portfolio():
-        print(f"  #{e.family:<14} holdout sMAPE {e.score:.4f}  (iter {e.iteration})")
+        print(f"  #{e.family:<20} holdout sMAPE {e.score:.4f}  (iter {e.iteration})")
+    demo = result.run_dir / "demo.html"
+    if demo.exists():
+        print(f"\ndemo:  open {demo}")
     return 0
 
 

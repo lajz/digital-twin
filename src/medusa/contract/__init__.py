@@ -1,12 +1,26 @@
 """The twin contract: the interface a generated `twin.py` must satisfy, and its checker."""
 
-from medusa.contract.interface import Observations, PARAM_TRIPLE_LEN, REQUIRED_TWIN_ATTRS
-from medusa.contract.checker import CheckResult, check_twin_source, check_twin_object
+from medusa.contract.checker import (
+    CheckResult,
+    check_twin_object,
+    check_twin_source,
+)
+from medusa.contract.interface import (
+    PARAM_TRIPLE_LEN,
+    POPULATION_TASK,
+    SPATIAL_TASK,
+    STRUCTURED_TASK,
+    Observations,
+    Task,
+)
 
 __all__ = [
     "Observations",
+    "Task",
+    "POPULATION_TASK",
+    "STRUCTURED_TASK",
+    "SPATIAL_TASK",
     "PARAM_TRIPLE_LEN",
-    "REQUIRED_TWIN_ATTRS",
     "CheckResult",
     "check_twin_source",
     "check_twin_object",

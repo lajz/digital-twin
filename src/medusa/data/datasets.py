@@ -9,7 +9,7 @@ from pathlib import Path
 
 from medusa.data import build, fetch, synthetic
 
-REAL_DATASETS = ("ipb-ecoli",)
+REAL_DATASETS = ("ipb-ecoli", "ipb-ecoli-structured", "ipb-ecoli-spatial")
 
 
 def list_datasets() -> list[str]:
@@ -36,6 +36,10 @@ def build_dataset(
         return build.build_synthetic(name, fit_frac=fit_frac, **kw)
     if name == "ipb-ecoli":
         return fetch.build_ipb_ecoli(fit_frac=fit_frac, **kw)
+    if name == "ipb-ecoli-structured":
+        return fetch.build_ipb_ecoli_structured(fit_frac=fit_frac, **kw)
+    if name == "ipb-ecoli-spatial":
+        return fetch.build_ipb_ecoli_spatial(fit_frac=fit_frac, **kw)
     raise ValueError(
         f"unknown dataset {name!r}; choose from {', '.join(list_datasets())}"
     )

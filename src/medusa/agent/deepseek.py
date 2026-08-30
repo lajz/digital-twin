@@ -22,12 +22,12 @@ class Completion:
 
 
 class DryRunClient:
-    """Cycles through canned twin sources. No network, no cost."""
+    """Cycles through canned twin sources for a task. No network, no cost."""
 
     model = "dry-run"
 
-    def __init__(self, sources: list[str] | None = None) -> None:
-        self._sources = sources or canned.wrapped_sequence()
+    def __init__(self, sources: list[str] | None = None, *, task_name: str = "population") -> None:
+        self._sources = sources or canned.wrapped_sequence(task_name)
         self._i = 0
 
     def complete(self, system: str, user: str) -> Completion:  # noqa: ARG002
@@ -97,5 +97,5 @@ class DeepSeekClient:
         raise RuntimeError(f"DeepSeek API failed after {self._max_retries} attempts: {last_exc}")
 
 
-def get_client(cfg: LoopConfig, *, dry_run: bool):
-    return DryRunClient() if dry_run else DeepSeekClient(cfg)
+def get_client(cfg: LoopConfig, *, dry_run: bool, task_name: str = "population"):
+    return DryRunClient(task_name=task_name) if dry_run else DeepSeekClient(cfg)

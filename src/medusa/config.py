@@ -74,6 +74,8 @@ class LoopConfig:
 
     # prompt shaping
     system_prompt: str = prompts.SYSTEM_PROMPT
+    system_prompt_structured: str = prompts.STRUCTURED_SYSTEM_PROMPT
+    system_prompt_spatial: str = prompts.SPATIAL_SYSTEM_PROMPT
     iteration_template: str = prompts.ITERATION_TEMPLATE
     diversity_nudge_every: int = 3  # every Nth iter, push for an unexplored family
     context_obs_max_points: int = 60  # downsample fit-window table to <= this many rows
@@ -82,6 +84,18 @@ class LoopConfig:
     # harness
     candidate_timeout_s: float = 20.0
     twin_runtime_budget_s: float = 5.0
+    # spatial (L2) tasks: agent-based rollouts are stochastic + slower
+    spatial_candidate_timeout_s: float = 150.0
+    spatial_runtime_budget_s: float = 90.0
+
+    def system_prompt_for(self, task_name: str) -> str:
+        return {
+            "structured": self.system_prompt_structured,
+            "spatial": self.system_prompt_spatial,
+        }.get(task_name, self.system_prompt)
+
+    def runtime_budget_for(self, task_name: str) -> float:
+        return self.spatial_runtime_budget_s if task_name == "spatial" else self.twin_runtime_budget_s
 
     def to_json(self) -> str:
         return json.dumps(dataclasses.asdict(self), indent=2, sort_keys=True)

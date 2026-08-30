@@ -26,6 +26,12 @@ def run_candidate(
 ) -> EvalResult:
     processed_dir = processed_dir or config.PROCESSED_DIR
 
+    try:
+        spatial = build.load(processed_dir=processed_dir).task.mode == "spatial"
+    except Exception:
+        spatial = False
+    timeout_s = cfg.spatial_candidate_timeout_s if spatial else cfg.candidate_timeout_s
+
     with tempfile.TemporaryDirectory(prefix="medusa-cand-") as tmp:
         tmp_path = Path(tmp)
         (tmp_path / "twin.py").write_text(source)
@@ -52,14 +58,14 @@ def run_candidate(
                 ],
                 capture_output=True,
                 text=True,
-                timeout=cfg.candidate_timeout_s,
+                timeout=timeout_s,
                 cwd=tmp,
                 env=env,
             )
         except subprocess.TimeoutExpired:
             return EvalResult(
                 crashed=True,
-                error=f"candidate exceeded {cfg.candidate_timeout_s:.0f}s wall-clock timeout",
+                error=f"candidate exceeded {timeout_s:.0f}s wall-clock timeout",
             )
 
         payload = _extract_json(proc.stdout)

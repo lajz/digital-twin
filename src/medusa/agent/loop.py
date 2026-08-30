@@ -10,7 +10,6 @@ import dataclasses
 import datetime as dt
 import json
 import re
-import shutil
 from pathlib import Path
 
 import numpy as np
@@ -45,22 +44,32 @@ def extract_code_block(text: str) -> str | None:
 def obs_table(obs, max_points: int) -> str:
     n = len(obs)
     idx = np.unique(np.linspace(0, n - 1, min(max_points, n)).astype(int))
-    rows = ["| time_h | population_count | total_area_um2 |", "|---|---|---|"]
+    cols = ["time_h", *obs.channels()]
+    rows = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
     for i in idx:
-        area = "" if obs.total_area_um2 is None else f"{obs.total_area_um2[i]:.1f}"
-        rows.append(f"| {obs.time_s[i] / 3600.0:.3f} | {obs.population_count[i]:.0f} | {area} |")
+        vals = [f"{obs.time_s[i] / 3600.0:.3f}"]
+        for _, arr in obs.channels().items():
+            v = arr[i]
+            vals.append(f"{v:.3g}" if abs(v) < 100 else f"{v:.0f}")
+        rows.append("| " + " | ".join(vals) + " |")
     return "\n".join(rows)
 
 
 def _previous_section(source: str, res) -> str:
     m = res.metrics
     summary = (
-        f"family: {res.family}\n"
-        f"valid: {res.is_valid}  |  holdout sMAPE: {m.get('holdout_smape', float('nan')):.4f}  "
-        f"|  fit R^2: {m.get('fit_r2', float('nan')):.4f}  "
-        f"|  implied doubling time: {m.get('implied_doubling_h', float('nan')):.2f} h  "
-        f"|  plausibility: {m.get('plausibility', float('nan')):.2f}\n"
+        f"family: {res.family}   mode: {res.mode}\n"
+        f"valid: {res.is_valid}  |  combined holdout sMAPE: "
+        f"{m.get('holdout_smape', float('nan')):.4f}  |  implied doubling time: "
+        f"{m.get('implied_doubling_h', float('nan')):.2f} h  |  plausibility: "
+        f"{m.get('plausibility', float('nan')):.2f}\n"
     )
+    if res.per_observable:
+        summary += "per-observable sMAPE: " + ", ".join(
+            f"{k}={v:.3f}" for k, v in res.per_observable.items()
+        ) + "\n"
+    if res.runtime_s:
+        summary += f"runtime: {res.runtime_s:.1f} s (over budget: {res.over_budget})\n"
     if res.error:
         summary += f"error: {res.error}\n"
     if res.checker_report and res.checker_report != "OK":
@@ -68,10 +77,39 @@ def _previous_section(source: str, res) -> str:
     return f"```python\n{source}\n```\n\n{summary}"
 
 
+def _render_iter(idir: Path, demo_dir, source: str, res, dataset: Dataset, i: int) -> None:
+    """Forecast plot (series) or rollout + side-by-side comparison (spatial)."""
+    if not res.is_valid:
+        return
+    try:
+        if dataset.task.mode == "spatial":
+            from medusa.harness.evaluate import spatial_rollout
+            from medusa.spatial.render import comparison_figure
+
+            real, twin_roll = spatial_rollout(source, res.params, dataset, seed=0)
+            twin_roll.to_npz(idir / "rollout.npz")
+            fig = comparison_figure(
+                real, twin_roll,
+                split_time_s=dataset.split["t_split_s"],
+                out_path=idir / "comparison.png",
+                title=f"iter {i}: {res.family}  (holdout sMAPE {res.score:.3f})",
+            )
+            if demo_dir is not None:
+                demo_dir.mkdir(exist_ok=True)
+                (demo_dir / f"iter_{i:02d}.png").write_bytes(Path(fig).read_bytes())
+        else:
+            plots.forecast_plot(
+                source, res.params, dataset, idir / "forecast.png",
+                title=f"iter {i}: {res.family} (holdout sMAPE {res.score:.3f})",
+            )
+    except Exception as exc:  # pragma: no cover - rendering is best-effort
+        (idir / "render_error.txt").write_text(repr(exc))
+
+
 def _write_portfolio(run_dir: Path, archive: Archive, sources: dict[int, str], dataset: Dataset) -> None:
     pdir = run_dir / "portfolio"
     pdir.mkdir(exist_ok=True)
-    lines = [f"# Portfolio -- {dataset.name}", ""]
+    lines = [f"# Portfolio -- {dataset.name}  (task: {dataset.task.name})", ""]
     for rank, entry in enumerate(archive.portfolio(), start=1):
         fam_dir = pdir / f"{rank:02d}_{entry.family}"
         fam_dir.mkdir(exist_ok=True)
@@ -79,26 +117,33 @@ def _write_portfolio(run_dir: Path, archive: Archive, sources: dict[int, str], d
         (fam_dir / "twin.py").write_text(src)
         (fam_dir / "params.json").write_text(json.dumps(entry.params, indent=2))
         (fam_dir / "metrics.json").write_text(json.dumps(entry.metrics, indent=2, default=str))
-        try:
-            plots.forecast_plot(
-                src, entry.params, dataset, fam_dir / "forecast.png",
-                title=f"#{rank} {entry.family} (holdout sMAPE {entry.score:.3f})",
-            )
-        except Exception as exc:  # pragma: no cover - plotting is best-effort
-            (fam_dir / "forecast_error.txt").write_text(str(exc))
+        _render_iter(fam_dir, None, src, _AsResult(entry), dataset, entry.iteration)
         m = entry.metrics
         lines += [
             f"## {rank}. {entry.family}  (iteration {entry.iteration})",
             "",
-            f"- holdout sMAPE: **{entry.score:.4f}**",
-            f"- holdout MASE: {m.get('holdout_mase', float('nan')):.3f}",
-            f"- fit R^2: {m.get('fit_r2', float('nan')):.4f}",
+            f"- combined holdout sMAPE: **{entry.score:.4f}**",
+            "- per-observable: " + ", ".join(
+                f"{k} {v:.3f}" for k, v in entry.per_observable.items()
+            ),
             f"- implied doubling time: {m.get('implied_doubling_h', float('nan')):.2f} h "
             f"(plausibility {m.get('plausibility', float('nan')):.2f})",
             f"- parameters: `{json.dumps(entry.params)}`",
             "",
         ]
     (pdir / "portfolio.md").write_text("\n".join(lines))
+
+
+class _AsResult:
+    """Adapt an ArchiveEntry to the subset of EvalResult that _render_iter reads."""
+
+    def __init__(self, entry) -> None:
+        self.is_valid = True
+        self.params = entry.params
+        self.family = entry.family
+        self.score = entry.score
+        self.metrics = entry.metrics
+        self.per_observable = entry.per_observable
 
 
 def run_loop(
@@ -113,22 +158,24 @@ def run_loop(
     stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = runs_dir / f"{stamp}-{dataset.name}"
     run_dir.mkdir(parents=True, exist_ok=True)
+    demo_dir = run_dir / "demo"
 
     (run_dir / "config.json").write_text(cfg.to_json())
     (run_dir / "meta.json").write_text(
         json.dumps(
-            {"dataset": dataset.name, "started": stamp, "dry_run": dry_run,
-             "split": dataset.split},
+            {"dataset": dataset.name, "task": dataset.task.to_dict(), "started": stamp,
+             "dry_run": dry_run, "split": dataset.split},
             indent=2, default=str,
         )
     )
     trace = (run_dir / "trace.jsonl").open("w")
 
-    client = get_client(cfg, dry_run=dry_run)
+    client = get_client(cfg, dry_run=dry_run, task_name=dataset.task.name)
     archive = Archive()
     sources: dict[int, str] = {}
-    system_prompt = cfg.system_prompt.replace(
-        "{twin_runtime_budget_s}", f"{cfg.twin_runtime_budget_s:g}"
+    budget = cfg.runtime_budget_for(dataset.task.name)
+    system_prompt = cfg.system_prompt_for(dataset.task.name).replace(
+        "{twin_runtime_budget_s}", f"{budget:g}"
     )
     fit_table = obs_table(dataset.fit, cfg.context_obs_max_points)
     previous_section = prompts.FIRST_ITERATION_PREVIOUS
@@ -161,16 +208,18 @@ def run_loop(
             msg += f"\n\n---\n## reasoning (finish: {completion.finish_reason})\n\n{completion.reasoning}"
         (idir / "agent_msg.md").write_text(msg)
 
+        base_row = {
+            "iter": i,
+            "finish_reason": completion.finish_reason,
+            "prompt_tokens": completion.prompt_tokens,
+            "response_tokens": completion.response_tokens,
+        }
+
         if source is None:
-            res_dict = {"status": "no code block", "is_valid": False}
-            (idir / "metrics.json").write_text(json.dumps(res_dict, indent=2))
-            trace.write(json.dumps({
-                "iter": i, "family": None, "status": "no_code_block", "is_valid": False,
-                "holdout_smape": None, "plausibility": None,
-                "finish_reason": completion.finish_reason,
-                "prompt_tokens": completion.prompt_tokens,
-                "response_tokens": completion.response_tokens, "wall_s": 0.0,
-            }) + "\n")
+            (idir / "metrics.json").write_text(json.dumps({"status": "no code block"}, indent=2))
+            trace.write(json.dumps({**base_row, "family": None, "status": "no_code_block",
+                                    "is_valid": False, "holdout_smape": None,
+                                    "wall_s": 0.0}) + "\n")
             trace.flush()
             previous_section = (
                 "Your previous response contained no usable ```python code block. "
@@ -184,28 +233,19 @@ def run_loop(
         res = run_candidate(source, cfg, processed_dir=processed_dir)
         entry = archive.add(i, res)
         (idir / "metrics.json").write_text(json.dumps(res.to_dict(), indent=2, default=str))
-
-        if res.is_valid:
-            try:
-                plots.forecast_plot(
-                    source, res.params, dataset, idir / "forecast.png",
-                    title=f"iter {i}: {res.family} (holdout sMAPE {res.score:.3f})",
-                )
-            except Exception:  # pragma: no cover
-                pass
+        _render_iter(idir, demo_dir, source, res, dataset, i)
 
         trace.write(json.dumps({
-            "iter": i,
+            **base_row,
             "family": res.family,
+            "mode": res.mode,
             "status": entry.status,
             "is_valid": res.is_valid,
             "score": None if res.score == float("inf") else res.score,
             "holdout_smape": res.metrics.get("holdout_smape"),
+            "per_observable": res.per_observable,
             "plausibility": res.metrics.get("plausibility"),
             "implied_doubling_h": res.metrics.get("implied_doubling_h"),
-            "finish_reason": completion.finish_reason,
-            "prompt_tokens": completion.prompt_tokens,
-            "response_tokens": completion.response_tokens,
             "wall_s": res.runtime_s,
         }, default=str) + "\n")
         trace.flush()
@@ -231,5 +271,11 @@ def run_loop(
 
     scorecard = loop_scorecard(run_dir, target_smape=cfg.target_smape)
     (run_dir / "scorecard.json").write_text(json.dumps(scorecard.to_dict(), indent=2, default=str))
+    try:
+        from medusa.demo import build_demo
+
+        build_demo(run_dir)
+    except Exception:  # pragma: no cover
+        pass
 
     return RunResult(run_dir=run_dir, archive=archive, scorecard=scorecard)

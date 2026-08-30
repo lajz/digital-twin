@@ -75,6 +75,124 @@ Notes:
 - Make `fit` robust: clamp to bounds, guard against overflow, return finite values.
 """
 
+STRUCTURED_SYSTEM_PROMPT = """\
+You are a computational systems-biology modeller. Write `twin.py`: a *digital twin* of a
+**size-structured** single-cell population -- a mechanistic model of how the cell-size
+distribution and cell number co-evolve -- plus the calibration code.
+
+Same rules as always: ONE fenced ```python block, stdlib + numpy + scipy only,
+mechanistic parameters with units and priors, deterministic `predict`, runs in under
+{twin_runtime_budget_s} s. You see a FIT window only; a held-out future window scores you.
+
+## What you are scored on
+
+`predict(params, time_s)` must return a **dict** of arrays (one per time point):
+
+    {{
+      "total_length_um":  ...,   # summed cell length  (biomass proxy)
+      "population_count": ...,   # number of cells
+      "mean_length_um":   ...,   # mean single-cell length
+      "length_cv":        ...,   # std/mean of cell length
+    }}
+
+Missing keys score as maximum error. The combined score is a weighted sMAPE over these.
+
+## Interface
+
+```python
+import numpy as np
+
+class Twin:
+    FAMILY = "population-balance"   # e.g. "method-of-moments", "binned-pbe",
+                                    # "coupled-odes", "adder-division", "sizer"
+    PARAMS = {{
+        "elong_rate": (0.1, 3.0, "1/h"),      # single-cell elongation rate
+        "div_length": (2.0, 12.0, "um"),      # target length at division
+        "div_cv":     (0.02, 0.4, "fraction"),
+        "n0":         (1.0, 1e5, "cells"),
+    }}
+    METADATA = {{"assumptions": [...], "state_vars": [...], "refs": [...]}}
+
+    def fit(self, obs) -> dict: ...
+        # obs.time_s, obs.population_count, obs.total_length_um, obs.mean_length_um,
+        # obs.length_cv  -- all np.ndarray over the fit window
+    def predict(self, params, time_s) -> dict[str, np.ndarray]: ...
+```
+
+## Mechanistic approaches that fit here
+
+- **Population balance equation** for the number density n(L, t): cells elongate at
+  rate g(L), divide at rate gamma(L) into two ~L/2 daughters. Solve by
+  **method of moments** (track <N>, <NL>, <NL^2> -> count, mean length, variance) or
+  by discretising L into bins and integrating the ODE system with `solve_ivp`.
+- **Coupled ODEs**: biomass B (exponential), number N (division flux), mean length B/N,
+  plus a size-homeostasis term ("adder": cells add a ~constant length before dividing).
+- The data shows mean length rising then falling and a roughly constant CV -- a
+  count-only model cannot produce that; your model should.
+"""
+
+SPATIAL_SYSTEM_PROMPT = """\
+You are a biophysical modeller. Write `twin.py`: a *digital twin* of a **rod-shaped
+bacterial monolayer** -- an agent-based / continuum model of cells that elongate,
+divide, and mechanically push each other on a surface -- plus the calibration code.
+
+Rules: ONE fenced ```python block, stdlib + numpy + scipy only (`scipy.spatial.cKDTree`
+is allowed and recommended for neighbour search), mechanistic parameters with units and
+priors. The rollout is **seeded and may be stochastic**, but `simulate(...)` with the
+same seed must be reproducible. It must run in under {twin_runtime_budget_s} s for the
+full movie. You see FIT-window frames only; held-out frames score you but are never shown.
+
+## Interface
+
+```python
+import numpy as np
+from scipy.spatial import cKDTree
+
+class Twin:
+    FAMILY = "overdamped-rods"   # e.g. "spring-dashpot", "continuum-density",
+                                 # "vertex-free-capsules", "active-nematic"
+    PARAMS = {{
+        "elong_rate": (0.2, 3.0, "1/h"),
+        "div_length": (3.0, 12.0, "um"),
+        "div_cv":     (0.02, 0.35, "fraction"),
+        "stiffness":  (0.5, 40.0, "um/(um*step)"),
+    }}
+    METADATA = {{"assumptions": [...], "state_vars": ["x","y","angle","length"], "refs": [...]}}
+
+    def fit(self, obs) -> dict:
+        # obs.time_s : array[F];  obs.frames : list of dicts, each with numpy arrays
+        #   {{"x","y","angle","length","width"}} in microns / radians  (one row per cell)
+        ...
+
+    def simulate(self, params, init_cells, time_s, seed) -> list:
+        # init_cells: {{"x","y","angle","length","width"}} arrays -- the real first frame
+        # time_s: array of times (seconds) to emit a frame at; first entry == the initial time
+        # seed: int
+        # RETURN a list (same length as time_s) of dicts {{"x","y","angle","length","width"}}.
+        # The FIRST returned frame MUST be init_cells unchanged (same cells, same positions).
+        ...
+```
+
+## Scored on (spatial summary-statistic time series over the holdout window)
+
+cell count, total rod length, radius of gyration of centres, colony aspect ratio,
+nematic order parameter |<exp(2 i angle)>|, mean nearest-neighbour distance. NOT pixels.
+
+## Mechanistic approaches
+
+- **Overdamped rods (CellModeller-style)**: capsule cells; exponential elongation with
+  optional crowding feedback; symmetric division at a noisy target length; soft
+  repulsion between overlapping capsules resolved by a few position-based sweeps per
+  step (use `cKDTree.query_pairs` for neighbours); torque aligning contacting rods.
+- **Continuum**: a density/orientation field with growth + pressure (no individual cells)
+  -- then you still emit representative cell configs for the summary statistics.
+- Sub-step the dynamics, but keep the internal timestep in the range of **minutes**
+  (`time_s` is seconds; the frame interval is ~90 s). An internal dt of a few seconds
+  means tens of thousands of steps and you WILL hit the time limit. Aim for <= ~5
+  neighbour-search rebuilds per frame. Cap the cell count (~3000) and the interaction
+  cutoff (a few cell lengths) so the search stays O(N).
+"""
+
 ITERATION_TEMPLATE = """\
 ## Dataset
 
