@@ -17,6 +17,8 @@ class Completion:
     prompt_tokens: int
     response_tokens: int
     model: str
+    reasoning: str | None = None
+    finish_reason: str | None = None
 
 
 class DryRunClient:
@@ -56,29 +58,38 @@ class DeepSeekClient:
         self.model = cfg.model
 
     def complete(self, system: str, user: str) -> Completion:
+        # DeepSeek V4: thinking is a request-level toggle, not a model name. It must be
+        # sent explicitly -- v4-flash reasons by default and can burn the whole token
+        # budget before emitting any content.
+        thinking = "enabled" if self._cfg.thinking else "disabled"
+        max_tokens = self._cfg.max_response_tokens
+        if self._cfg.thinking:
+            max_tokens = max(max_tokens, 24000)  # leave room for reasoning + answer
+
         kwargs: dict = {
             "model": self._cfg.model,
             "temperature": self._cfg.temperature,
-            "max_tokens": self._cfg.max_response_tokens,
+            "max_tokens": max_tokens,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
+            "extra_body": {"thinking": {"type": thinking}},
         }
-        if self._cfg.thinking:
-            # DeepSeek V4: thinking is a request-level toggle, not a model name.
-            kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
 
         last_exc: Exception | None = None
         for attempt in range(self._max_retries):
             try:
                 resp = self._client.chat.completions.create(**kwargs)
                 usage = resp.usage
+                choice = resp.choices[0]
                 return Completion(
-                    text=resp.choices[0].message.content or "",
+                    text=choice.message.content or "",
                     prompt_tokens=getattr(usage, "prompt_tokens", 0) or 0,
                     response_tokens=getattr(usage, "completion_tokens", 0) or 0,
                     model=resp.model or self._cfg.model,
+                    reasoning=getattr(choice.message, "reasoning_content", None),
+                    finish_reason=choice.finish_reason,
                 )
             except Exception as exc:  # noqa: BLE001 - broad retry
                 last_exc = exc

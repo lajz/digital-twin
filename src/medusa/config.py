@@ -64,7 +64,7 @@ class LoopConfig:
     model: str = "deepseek-v4-flash"
     temperature: float = 0.7
     thinking: bool = False
-    max_response_tokens: int = 8000
+    max_response_tokens: int = 12000
 
     # loop control
     max_iters: int = 20

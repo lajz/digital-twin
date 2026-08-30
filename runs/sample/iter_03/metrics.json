@@ -1,29 +1,30 @@
 {
-  "family": "baranyi-ode",
+  "family": "monod-substrate",
   "params": {
-    "n0": 1.12289507303528,
-    "q0": 1.3594072747682648,
-    "mu_max": 1.9820810731422331,
-    "nmax": 39791.71367294471
+    "n0": 0.8900723494464913,
+    "mu_max": 1.8599677921930562,
+    "ks": 9.999993919916005,
+    "yield": 0.0003377582841237281,
+    "s0": 100000000.0
   },
-  "n_params": 4,
+  "n_params": 5,
   "passed_checks": true,
   "crashed": false,
   "nondeterministic": false,
   "over_budget": false,
   "error": null,
   "checker_report": "OK",
-  "runtime_s": 0.03161212522536516,
+  "runtime_s": 0.47141379211097956,
   "metrics": {
-    "holdout_smape": 0.05789724651591618,
-    "holdout_mase": 2.3101181586088084,
-    "holdout_log_rmse": 0.0753851801388152,
-    "fit_r2": 0.9911161837836152,
-    "fit_log_rmse": 0.2158376198103676,
-    "aic": -470.36742121433457,
-    "implied_doubling_h": 0.35213479223345107,
+    "holdout_smape": 0.1584224608302129,
+    "holdout_mase": 5.942399784611116,
+    "holdout_log_rmse": 0.17461340752877097,
+    "fit_r2": 0.9550675894960728,
+    "fit_log_rmse": 0.24595394730438716,
+    "aic": -427.6146215962809,
+    "implied_doubling_h": 0.37266605175286865,
     "plausibility": 1.0
   },
   "is_valid": true,
-  "score": 0.05789724651591618
+  "score": 0.1584224608302129
 }

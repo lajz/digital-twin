@@ -1,33 +1,38 @@
+```python
 import numpy as np
+from scipy.optimize import least_squares
 from scipy.integrate import solve_ivp
-from scipy.optimize import differential_evolution, minimize
 
 class Twin:
-    # Two-stage Baranyi-Roberts model with explicit lag phase and curvature parameter
-    # Mechanistic: lag is driven by intracellular "work-to-build" (q), then exponential
-    # growth limited by carrying capacity. Distinct from plain Baranyi by using a
-    # Richards-type curvature parameter (nu) for sharper/smoother transition.
-    FAMILY = "baranyi-richards"
+    # Mechanistic: two-reservoir model with explicit lag via "maturation" of a
+    # bottleneck enzyme. Cells transition from lag to exponential growth when a
+    # critical enzyme pool is built. Growth is then limited by a Monod-type
+    # resource depletion, but we model the resource implicitly via a carrying
+    # capacity with a smooth switch. This is distinct from Baranyi-Richards
+    # because the lag is driven by a separate state variable (enzyme) with its
+    # own dynamics, and the growth term uses a Monod form with a time-varying
+    # substrate that is consumed proportionally to growth.
+    FAMILY = "two-reservoir-monod"
     
     PARAMS = {
         "n0": (0.5, 100.0, "cells"),
         "mu_max": (0.5, 3.5, "1/h"),
         "lag": (0.0, 3.0, "h"),
         "carrying_capacity": (1e3, 1e6, "cells"),
-        "nu": (0.1, 5.0, "dimensionless"),  # Richards curvature: >1 sharper, <1 smoother
+        "k_s": (1e2, 1e6, "cells"),  # Monod half-saturation in terms of equivalent population
     }
     
     METADATA = {
         "assumptions": [
             "well-mixed",
             "single limiting resource",
-            "Baranyi-Roberts lag via intracellular work (q)",
-            "Richards curvature parameter nu for asymmetric sigmoid",
-            "no death, no maintenance",
-            "carrying capacity is constant"
+            "lag phase due to accumulation of a bottleneck enzyme",
+            "growth rate follows Monod kinetics on a resource that is depleted proportionally to biomass",
+            "resource pool is implicit in carrying capacity",
+            "no death, no maintenance"
         ],
-        "state_vars": ["N", "q"],
-        "refs": ["Baranyi & Roberts 1994", "Richards 1959"],
+        "state_vars": ["N", "E", "S"],
+        "refs": ["Monod 1949", "Baranyi & Roberts 1994 (lag concept)"],
     }
     
     def fit(self, obs):
@@ -40,13 +45,12 @@ class Twin:
             self.PARAMS["mu_max"][:2],
             self.PARAMS["lag"][:2],
             self.PARAMS["carrying_capacity"][:2],
-            self.PARAMS["nu"][:2],
+            self.PARAMS["k_s"][:2],
         ]
         
-        # Initial guesses from data
+        # Initial guesses
         n0_guess = max(1.0, y[0])
-        # Estimate mu_max from early exponential phase (before saturation)
-        # Use max log-slope over any window of 1h
+        # Estimate mu from early exponential phase (before saturation)
         mu_est = 2.0
         if len(t_h) > 2:
             slopes = []
@@ -73,39 +77,38 @@ class Twin:
         
         K_guess = np.max(y) * 1.2
         K_guess = np.clip(K_guess, *self.PARAMS["carrying_capacity"][:2])
-        nu_guess = 1.0  # Baranyi-like
+        k_s_guess = K_guess * 0.1
+        k_s_guess = np.clip(k_s_guess, *self.PARAMS["k_s"][:2])
         
-        x0 = [n0_guess, mu_est, lag_guess, K_guess, nu_guess]
+        x0 = [n0_guess, mu_est, lag_guess, K_guess, k_s_guess]
         x0 = np.clip(x0, [b[0] for b in bounds], [b[1] for b in bounds])
         
         def residuals(params):
-            n0, mu_max, lag, K, nu = params
-            # clamp
+            n0, mu_max, lag, K, k_s = params
             n0 = np.clip(n0, *self.PARAMS["n0"][:2])
             mu_max = np.clip(mu_max, *self.PARAMS["mu_max"][:2])
             lag = np.clip(lag, *self.PARAMS["lag"][:2])
             K = np.clip(K, *self.PARAMS["carrying_capacity"][:2])
-            nu = np.clip(nu, *self.PARAMS["nu"][:2])
+            k_s = np.clip(k_s, *self.PARAMS["k_s"][:2])
             
             p = {
                 "n0": n0, "mu_max": mu_max, "lag": lag,
-                "carrying_capacity": K, "nu": nu
+                "carrying_capacity": K, "k_s": k_s
             }
             try:
                 pred = self.predict(p, t_h * 3600.0)
                 pred = np.maximum(pred, 1e-6)
                 pred_log = np.log(pred)
-                # Use relative error in log space
+                # Weighted log residuals, more weight on early low counts
                 return (pred_log - y_log) / np.sqrt(y + 1.0)
             except Exception:
                 return np.ones_like(y_log) * 1e6
         
-        # Multi-start local optimization for robustness
+        # Multi-start least_squares for robustness
         best_res = np.inf
         best_x = None
         rng = np.random.default_rng(42)
         starts = [x0]
-        # Add random perturbations around guess
         for _ in range(5):
             perturb = np.array([
                 rng.uniform(0.8, 1.2) for _ in range(5)
@@ -113,30 +116,36 @@ class Twin:
             starts.append(np.clip(x0 * perturb, [b[0] for b in bounds], [b[1] for b in bounds]))
         
         for start in starts:
-            result = minimize(
-                lambda p: np.sum(residuals(p)**2),
-                start,
-                method='L-BFGS-B',
-                bounds=bounds,
-                options={'maxiter': 300, 'ftol': 1e-14, 'gtol': 1e-8},
-            )
-            if result.success and result.fun < best_res:
-                best_res = result.fun
-                best_x = result.x
+            try:
+                result = least_squares(
+                    residuals, start,
+                    bounds=([b[0] for b in bounds], [b[1] for b in bounds]),
+                    max_nfev=500,
+                    xtol=1e-12,
+                    ftol=1e-12,
+                    gtol=1e-12,
+                )
+                if result.cost < best_res:
+                    best_res = result.cost
+                    best_x = result.x
+            except Exception:
+                continue
         
         if best_x is None:
-            # Fallback to differential evolution
-            result = differential_evolution(
-                lambda p: np.sum(residuals(p)**2),
-                bounds,
-                seed=42,
-                maxiter=200,
-                popsize=20,
-                tol=1e-12,
-                polish=True,
-                workers=1,
-            )
-            best_x = result.x
+            # Fallback to simple grid search on key params
+            mu_grid = np.linspace(0.5, 3.5, 10)
+            lag_grid = np.linspace(0.0, 2.0, 10)
+            K_grid = np.geomspace(1e3, 1e6, 10)
+            best_res = np.inf
+            best_x = x0
+            for mu in mu_grid:
+                for lag in lag_grid:
+                    for K in K_grid:
+                        params = [n0_guess, mu, lag, K, k_s_guess]
+                        res = np.sum(residuals(params)**2)
+                        if res < best_res:
+                            best_res = res
+                            best_x = params
         
         best_x = np.clip(best_x, [b[0] for b in bounds], [b[1] for b in bounds])
         
@@ -145,7 +154,7 @@ class Twin:
             "mu_max": best_x[1],
             "lag": best_x[2],
             "carrying_capacity": best_x[3],
-            "nu": best_x[4],
+            "k_s": best_x[4],
         }
     
     def predict(self, params, time_s):
@@ -154,39 +163,40 @@ class Twin:
         mu_max = params["mu_max"]
         lag = params["lag"]
         K = params["carrying_capacity"]
-        nu = params["nu"]
+        k_s = params["k_s"]
         
-        # Baranyi-Roberts with Richards curvature:
-        # dN/dt = mu_max * (q/(q+1)) * N * (1 - (N/K)^nu)
-        # dq/dt = mu_max * q   (q0 chosen so that lag = ln(1+1/q0)/mu_max)
-        # q0 = 1/(exp(mu_max*lag)-1)
+        # Two-reservoir model:
+        # dN/dt = mu_max * (E/(E+1)) * (S/(S+k_s)) * N
+        # dE/dt = mu_max * E  (exponential buildup of enzyme)
+        # dS/dt = - (1/Y) * dN/dt  but we use a Monod term with S starting at K
+        # To keep it simple, we model S as a resource reservoir that is depleted
+        # proportionally to growth: S(t) = K - N(t) (since N consumes resource)
+        # But then Monod term becomes (K-N)/(K-N+k_s). This is equivalent to
+        # a logistic-like term but with a different shape. We'll use that.
+        #
+        # Enzyme E starts at E0 = 1/(exp(mu_max*lag)-1) so that E/(E+1) ~ 0
+        # initially and reaches ~1 after lag.
         
-        q0 = 1.0 / (np.exp(mu_max * lag) - 1.0) if lag > 0 else 1e10
+        E0 = 1.0 / (np.exp(mu_max * lag) - 1.0) if lag > 0 else 1e10
         
         def rhs(t, state):
-            N, q = state
-            if N <= 0 or q <= 0:
+            N, E = state
+            if N <= 0 or E <= 0:
                 return [0.0, 0.0]
-            # Clamp N to avoid overflow
             N_safe = min(N, K * 1.1)
-            # Logistic term with Richards curvature
-            if nu < 1e-6:
-                # avoid division by zero
-                logistic = 1.0 - (N_safe / K)
-            else:
-                logistic = 1.0 - (N_safe / K) ** nu
-            logistic = max(logistic, -1e-6)
-            growth = mu_max * (q / (q + 1.0)) * N_safe * logistic
-            dq = mu_max * q
-            return [growth, dq]
+            S = max(K - N_safe, 0.0)
+            monod = S / (S + k_s) if S + k_s > 0 else 0.0
+            enzyme_factor = E / (E + 1.0)
+            growth = mu_max * enzyme_factor * monod * N_safe
+            dE = mu_max * E
+            return [growth, dE]
         
         t_span = (0.0, t_h[-1] if len(t_h) > 0 else 0.0)
         if t_span[1] <= 0:
             return np.array([n0])
         
-        # Use dense output with fine max_step for accuracy
         sol = solve_ivp(
-            rhs, t_span, [n0, q0],
+            rhs, t_span, [n0, E0],
             t_eval=t_h,
             method='LSODA',
             rtol=1e-10, atol=1e-10,
@@ -194,7 +204,7 @@ class Twin:
         )
         
         if not sol.success:
-            # Fallback: pure logistic with same K and lag via time shift
+            # Fallback: logistic with lag shift
             t_shift = t_h - lag
             t_shift = np.maximum(t_shift, 0.0)
             N_pred = K / (1 + (K/n0 - 1) * np.exp(-mu_max * t_shift))
@@ -202,6 +212,6 @@ class Twin:
         
         N = sol.y[0]
         N = np.maximum(N, 0.0)
-        # Ensure N doesn't exceed K significantly
         N = np.minimum(N, K * 1.01)
         return N
+```

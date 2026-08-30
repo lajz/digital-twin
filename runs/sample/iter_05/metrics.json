@@ -1,0 +1,30 @@
+{
+  "family": "two-reservoir-monod",
+  "params": {
+    "n0": 2.102819189271354,
+    "mu_max": 3.4999999999999996,
+    "lag": 0.5200553370519843,
+    "carrying_capacity": 36180.999307143,
+    "k_s": 30091.922025656735
+  },
+  "n_params": 5,
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 1.1675881249830127,
+  "metrics": {
+    "holdout_smape": 0.09638398769580733,
+    "holdout_mase": 3.7557342252826613,
+    "holdout_log_rmse": 0.11640207851962855,
+    "fit_r2": 0.9857474918775595,
+    "fit_log_rmse": 0.25387270206827,
+    "aic": -417.72776089232116,
+    "implied_doubling_h": 0.3634687310445122,
+    "plausibility": 1.0
+  },
+  "is_valid": true,
+  "score": 0.09638398769580733
+}

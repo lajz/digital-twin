@@ -1,174 +1,230 @@
 {
-  "best_score": 0.05789724651591618,
-  "distinct_valid_families": 4,
+  "best_score": 0.0600007853386662,
+  "distinct_valid_families": 5,
   "portfolio": [
     {
+      "iteration": 2,
+      "family": "baranyi-robust-fixed",
+      "score": 0.0600007853386662,
+      "is_valid": true,
+      "n_params": 4,
+      "metrics": {
+        "holdout_smape": 0.0600007853386662,
+        "holdout_mase": 2.3951971026226357,
+        "holdout_log_rmse": 0.07803147896949314,
+        "fit_r2": 0.9906864283460348,
+        "fit_log_rmse": 0.2154894872248668,
+        "aic": -470.871063987954,
+        "implied_doubling_h": 0.35534120857507057,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 1.4402299460203012,
+        "mu_max": 1.9507880541321247,
+        "lag": 0.3491341306986382,
+        "carrying_capacity": 40427.285127163435
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 5,
+      "family": "two-reservoir-monod",
+      "score": 0.09638398769580733,
+      "is_valid": true,
+      "n_params": 5,
+      "metrics": {
+        "holdout_smape": 0.09638398769580733,
+        "holdout_mase": 3.7557342252826613,
+        "holdout_log_rmse": 0.11640207851962855,
+        "fit_r2": 0.9857474918775595,
+        "fit_log_rmse": 0.25387270206827,
+        "aic": -417.72776089232116,
+        "implied_doubling_h": 0.3634687310445122,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 2.102819189271354,
+        "mu_max": 3.4999999999999996,
+        "lag": 0.5200553370519843,
+        "carrying_capacity": 36180.999307143,
+        "k_s": 30091.922025656735
+      },
+      "status": "ok"
+    },
+    {
       "iteration": 3,
-      "family": "baranyi-ode",
-      "score": 0.05789724651591618,
+      "family": "monod-substrate",
+      "score": 0.1584224608302129,
       "is_valid": true,
-      "n_params": 4,
+      "n_params": 5,
       "metrics": {
-        "holdout_smape": 0.05789724651591618,
-        "holdout_mase": 2.3101181586088084,
-        "holdout_log_rmse": 0.0753851801388152,
-        "fit_r2": 0.9911161837836152,
-        "fit_log_rmse": 0.2158376198103676,
-        "aic": -470.36742121433457,
-        "implied_doubling_h": 0.35213479223345107,
+        "holdout_smape": 0.1584224608302129,
+        "holdout_mase": 5.942399784611116,
+        "holdout_log_rmse": 0.17461340752877097,
+        "fit_r2": 0.9550675894960728,
+        "fit_log_rmse": 0.24595394730438716,
+        "aic": -427.6146215962809,
+        "implied_doubling_h": 0.37266605175286865,
         "plausibility": 1.0
       },
       "params": {
-        "n0": 1.12289507303528,
-        "q0": 1.3594072747682648,
-        "mu_max": 1.9820810731422331,
-        "nmax": 39791.71367294471
-      },
-      "status": "ok"
-    },
-    {
-      "iteration": 4,
-      "family": "richards",
-      "score": 0.06598338140294871,
-      "is_valid": true,
-      "n_params": 4,
-      "metrics": {
-        "holdout_smape": 0.06598338140294871,
-        "holdout_mase": 2.62348981714635,
-        "holdout_log_rmse": 0.08486423518635834,
-        "fit_r2": 0.9903292284889652,
-        "fit_log_rmse": 0.2238662880461785,
-        "aic": -458.9723761222125,
-        "implied_doubling_h": 0.3650790475126623,
-        "plausibility": 1.0
-      },
-      "params": {
-        "carrying_capacity": 38028.15223444709,
-        "nu": 1.3147234662994243,
-        "mu_max": 2.496165084253447,
-        "t_infl": 5.541608330679521
-      },
-      "status": "ok"
-    },
-    {
-      "iteration": 1,
-      "family": "logistic",
-      "score": 0.09295847613327864,
-      "is_valid": true,
-      "n_params": 3,
-      "metrics": {
-        "holdout_smape": 0.09295847613327864,
-        "holdout_mase": 3.781192992458393,
-        "holdout_log_rmse": 0.10997451917944466,
-        "fit_r2": 0.9855801175188379,
-        "fit_log_rmse": 0.24502315429909755,
-        "aic": -432.797600454624,
-        "implied_doubling_h": 0.37274473455983526,
-        "plausibility": 1.0
-      },
-      "params": {
-        "n0": 1.0000000000000002,
-        "mu_max": 1.859620589129036,
-        "carrying_capacity": 42940.60697521882
+        "n0": 0.8900723494464913,
+        "mu_max": 1.8599677921930562,
+        "ks": 9.999993919916005,
+        "yield": 0.0003377582841237281,
+        "s0": 100000000.0
       },
       "status": "ok"
     }
   ],
   "leaderboard": [
     {
-      "iteration": 3,
-      "family": "baranyi-ode",
-      "score": 0.05789724651591618,
+      "iteration": 2,
+      "family": "baranyi-robust-fixed",
+      "score": 0.0600007853386662,
       "is_valid": true,
       "n_params": 4,
       "metrics": {
-        "holdout_smape": 0.05789724651591618,
-        "holdout_mase": 2.3101181586088084,
-        "holdout_log_rmse": 0.0753851801388152,
-        "fit_r2": 0.9911161837836152,
-        "fit_log_rmse": 0.2158376198103676,
-        "aic": -470.36742121433457,
-        "implied_doubling_h": 0.35213479223345107,
+        "holdout_smape": 0.0600007853386662,
+        "holdout_mase": 2.3951971026226357,
+        "holdout_log_rmse": 0.07803147896949314,
+        "fit_r2": 0.9906864283460348,
+        "fit_log_rmse": 0.2154894872248668,
+        "aic": -470.871063987954,
+        "implied_doubling_h": 0.35534120857507057,
         "plausibility": 1.0
       },
       "params": {
-        "n0": 1.12289507303528,
-        "q0": 1.3594072747682648,
-        "mu_max": 1.9820810731422331,
-        "nmax": 39791.71367294471
+        "n0": 1.4402299460203012,
+        "mu_max": 1.9507880541321247,
+        "lag": 0.3491341306986382,
+        "carrying_capacity": 40427.285127163435
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 5,
+      "family": "two-reservoir-monod",
+      "score": 0.09638398769580733,
+      "is_valid": true,
+      "n_params": 5,
+      "metrics": {
+        "holdout_smape": 0.09638398769580733,
+        "holdout_mase": 3.7557342252826613,
+        "holdout_log_rmse": 0.11640207851962855,
+        "fit_r2": 0.9857474918775595,
+        "fit_log_rmse": 0.25387270206827,
+        "aic": -417.72776089232116,
+        "implied_doubling_h": 0.3634687310445122,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 2.102819189271354,
+        "mu_max": 3.4999999999999996,
+        "lag": 0.5200553370519843,
+        "carrying_capacity": 36180.999307143,
+        "k_s": 30091.922025656735
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 3,
+      "family": "monod-substrate",
+      "score": 0.1584224608302129,
+      "is_valid": true,
+      "n_params": 5,
+      "metrics": {
+        "holdout_smape": 0.1584224608302129,
+        "holdout_mase": 5.942399784611116,
+        "holdout_log_rmse": 0.17461340752877097,
+        "fit_r2": 0.9550675894960728,
+        "fit_log_rmse": 0.24595394730438716,
+        "aic": -427.6146215962809,
+        "implied_doubling_h": 0.37266605175286865,
+        "plausibility": 1.0
+      },
+      "params": {
+        "n0": 0.8900723494464913,
+        "mu_max": 1.8599677921930562,
+        "ks": 9.999993919916005,
+        "yield": 0.0003377582841237281,
+        "s0": 100000000.0
       },
       "status": "ok"
     },
     {
       "iteration": 4,
-      "family": "richards",
-      "score": 0.06598338140294871,
+      "family": "baranyi-richards",
+      "score": 0.24362738286135,
       "is_valid": true,
-      "n_params": 4,
+      "n_params": 5,
       "metrics": {
-        "holdout_smape": 0.06598338140294871,
-        "holdout_mase": 2.62348981714635,
-        "holdout_log_rmse": 0.08486423518635834,
-        "fit_r2": 0.9903292284889652,
-        "fit_log_rmse": 0.2238662880461785,
-        "aic": -458.9723761222125,
-        "implied_doubling_h": 0.3650790475126623,
+        "holdout_smape": 0.24362738286135,
+        "holdout_mase": 10.843230975217182,
+        "holdout_log_rmse": 0.27650583372204596,
+        "fit_r2": 0.5656785868388234,
+        "fit_log_rmse": 0.6254866827786484,
+        "aic": -136.3982748249516,
+        "implied_doubling_h": 0.35174135440899545,
         "plausibility": 1.0
       },
       "params": {
-        "carrying_capacity": 38028.15223444709,
-        "nu": 1.3147234662994243,
-        "mu_max": 2.496165084253447,
-        "t_infl": 5.541608330679521
+        "n0": 2.081040020097049,
+        "mu_max": 2.6592433054938183,
+        "lag": 0.6686834836450326,
+        "carrying_capacity": 62442.81177311073,
+        "nu": 0.18876440952308107
+      },
+      "status": "ok"
+    },
+    {
+      "iteration": 6,
+      "family": "age-structured-maturity",
+      "score": 2.0,
+      "is_valid": true,
+      "n_params": 5,
+      "metrics": {
+        "holdout_smape": 2.0,
+        "holdout_mase": 39.78007919454317,
+        "holdout_log_rmse": 31.30845026941188,
+        "fit_r2": -0.5775243756450512,
+        "fit_log_rmse": 6.1267255303203285,
+        "aic": 575.5500560293012,
+        "implied_doubling_h": 0.0009142130098860049,
+        "plausibility": 0.7000279781251134
+      },
+      "params": {
+        "n0": 4.0516748698709275,
+        "mu_max": 2.4246903493616667,
+        "maturation_rate": 4.975623009231756,
+        "carrying_capacity": 45931.50215675589,
+        "death_rate": 2.336051966180698e-47
       },
       "status": "ok"
     },
     {
       "iteration": 1,
-      "family": "logistic",
-      "score": 0.09295847613327864,
-      "is_valid": true,
-      "n_params": 3,
-      "metrics": {
-        "holdout_smape": 0.09295847613327864,
-        "holdout_mase": 3.781192992458393,
-        "holdout_log_rmse": 0.10997451917944466,
-        "fit_r2": 0.9855801175188379,
-        "fit_log_rmse": 0.24502315429909755,
-        "aic": -432.797600454624,
-        "implied_doubling_h": 0.37274473455983526,
-        "plausibility": 1.0
-      },
-      "params": {
-        "n0": 1.0000000000000002,
-        "mu_max": 1.859620589129036,
-        "carrying_capacity": 42940.60697521882
-      },
-      "status": "ok"
-    },
-    {
-      "iteration": 2,
-      "family": "gompertz",
-      "score": 0.7768269792494029,
-      "is_valid": true,
+      "family": "baranyi-robust",
+      "score": Infinity,
+      "is_valid": false,
       "n_params": 4,
       "metrics": {
-        "holdout_smape": 0.7768269792494029,
-        "holdout_mase": 52.2442114113481,
-        "holdout_log_rmse": 0.8496840474742855,
-        "fit_r2": 0.9059007790704628,
-        "fit_log_rmse": 0.27875043890525875,
-        "aic": -390.5607750782428,
-        "implied_doubling_h": 0.3117514378661397,
+        "holdout_smape": 0.059894196490439075,
+        "holdout_mase": 2.3908687985055437,
+        "holdout_log_rmse": 0.0779226148858272,
+        "fit_r2": 0.9907029831160769,
+        "fit_log_rmse": 0.21608395556992513,
+        "aic": -470.0115382499452,
+        "implied_doubling_h": 0.3552240867049315,
         "plausibility": 1.0
       },
       "params": {
-        "n0": 1.000000000000004,
-        "a": 11.650345027529157,
-        "mu_max": 2.22344626188231,
-        "lag": 0.44273772779647913
+        "n0": 1.438747719494913,
+        "mu_max": 1.9515291542760824,
+        "lag": 0.3498052206349858,
+        "carrying_capacity": 40410.409394167975
       },
-      "status": "ok"
+      "status": "over time budget"
     }
   ]
 }

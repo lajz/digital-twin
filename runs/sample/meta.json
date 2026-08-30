@@ -1,7 +1,7 @@
 {
   "dataset": "synthetic-ecoli-fast",
-  "started": "20260830-004805",
-  "dry_run": true,
+  "started": "20260830-023126",
+  "dry_run": false,
   "split": {
     "fit_frac": 0.6,
     "t_split_s": 28080.0,

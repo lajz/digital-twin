@@ -1,29 +1,30 @@
 {
-  "family": "richards",
+  "family": "baranyi-richards",
   "params": {
-    "carrying_capacity": 38028.15223444709,
-    "nu": 1.3147234662994243,
-    "mu_max": 2.496165084253447,
-    "t_infl": 5.541608330679521
+    "n0": 2.081040020097049,
+    "mu_max": 2.6592433054938183,
+    "lag": 0.6686834836450326,
+    "carrying_capacity": 62442.81177311073,
+    "nu": 0.18876440952308107
   },
-  "n_params": 4,
+  "n_params": 5,
   "passed_checks": true,
   "crashed": false,
   "nondeterministic": false,
   "over_budget": false,
   "error": null,
   "checker_report": "OK",
-  "runtime_s": 0.0022020828910171986,
+  "runtime_s": 4.46503487508744,
   "metrics": {
-    "holdout_smape": 0.06598338140294871,
-    "holdout_mase": 2.62348981714635,
-    "holdout_log_rmse": 0.08486423518635834,
-    "fit_r2": 0.9903292284889652,
-    "fit_log_rmse": 0.2238662880461785,
-    "aic": -458.9723761222125,
-    "implied_doubling_h": 0.3650790475126623,
+    "holdout_smape": 0.24362738286135,
+    "holdout_mase": 10.843230975217182,
+    "holdout_log_rmse": 0.27650583372204596,
+    "fit_r2": 0.5656785868388234,
+    "fit_log_rmse": 0.6254866827786484,
+    "aic": -136.3982748249516,
+    "implied_doubling_h": 0.35174135440899545,
     "plausibility": 1.0
   },
   "is_valid": true,
-  "score": 0.06598338140294871
+  "score": 0.24362738286135
 }

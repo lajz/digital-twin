@@ -1,25 +1,25 @@
 # Portfolio -- synthetic-ecoli-fast
 
-## 1. baranyi-ode  (iteration 3)
+## 1. baranyi-robust-fixed  (iteration 2)
 
-- holdout sMAPE: **0.0579**
-- holdout MASE: 2.310
-- fit R^2: 0.9911
-- implied doubling time: 0.35 h (plausibility 1.00)
-- parameters: `{"n0": 1.12289507303528, "q0": 1.3594072747682648, "mu_max": 1.9820810731422331, "nmax": 39791.71367294471}`
+- holdout sMAPE: **0.0600**
+- holdout MASE: 2.395
+- fit R^2: 0.9907
+- implied doubling time: 0.36 h (plausibility 1.00)
+- parameters: `{"n0": 1.4402299460203012, "mu_max": 1.9507880541321247, "lag": 0.3491341306986382, "carrying_capacity": 40427.285127163435}`
 
-## 2. richards  (iteration 4)
+## 2. two-reservoir-monod  (iteration 5)
 
-- holdout sMAPE: **0.0660**
-- holdout MASE: 2.623
-- fit R^2: 0.9903
+- holdout sMAPE: **0.0964**
+- holdout MASE: 3.756
+- fit R^2: 0.9857
+- implied doubling time: 0.36 h (plausibility 1.00)
+- parameters: `{"n0": 2.102819189271354, "mu_max": 3.4999999999999996, "lag": 0.5200553370519843, "carrying_capacity": 36180.999307143, "k_s": 30091.922025656735}`
+
+## 3. monod-substrate  (iteration 3)
+
+- holdout sMAPE: **0.1584**
+- holdout MASE: 5.942
+- fit R^2: 0.9551
 - implied doubling time: 0.37 h (plausibility 1.00)
-- parameters: `{"carrying_capacity": 38028.15223444709, "nu": 1.3147234662994243, "mu_max": 2.496165084253447, "t_infl": 5.541608330679521}`
-
-## 3. logistic  (iteration 1)
-
-- holdout sMAPE: **0.0930**
-- holdout MASE: 3.781
-- fit R^2: 0.9856
-- implied doubling time: 0.37 h (plausibility 1.00)
-- parameters: `{"n0": 1.0000000000000002, "mu_max": 1.859620589129036, "carrying_capacity": 42940.60697521882}`
+- parameters: `{"n0": 0.8900723494464913, "mu_max": 1.8599677921930562, "ks": 9.999993919916005, "yield": 0.0003377582841237281, "s0": 100000000.0}`

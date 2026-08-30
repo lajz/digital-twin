@@ -156,7 +156,10 @@ def run_loop(
         idir = run_dir / f"iter_{i:02d}"
         idir.mkdir(exist_ok=True)
         (idir / "prompt.md").write_text(f"# SYSTEM\n\n{system_prompt}\n\n# USER\n\n{user_prompt}")
-        (idir / "agent_msg.md").write_text(completion.text or "(empty response)")
+        msg = completion.text or "(empty response)"
+        if completion.reasoning:
+            msg += f"\n\n---\n## reasoning (finish: {completion.finish_reason})\n\n{completion.reasoning}"
+        (idir / "agent_msg.md").write_text(msg)
 
         if source is None:
             res_dict = {"status": "no code block", "is_valid": False}
@@ -164,6 +167,7 @@ def run_loop(
             trace.write(json.dumps({
                 "iter": i, "family": None, "status": "no_code_block", "is_valid": False,
                 "holdout_smape": None, "plausibility": None,
+                "finish_reason": completion.finish_reason,
                 "prompt_tokens": completion.prompt_tokens,
                 "response_tokens": completion.response_tokens, "wall_s": 0.0,
             }) + "\n")
@@ -199,6 +203,7 @@ def run_loop(
             "holdout_smape": res.metrics.get("holdout_smape"),
             "plausibility": res.metrics.get("plausibility"),
             "implied_doubling_h": res.metrics.get("implied_doubling_h"),
+            "finish_reason": completion.finish_reason,
             "prompt_tokens": completion.prompt_tokens,
             "response_tokens": completion.response_tokens,
             "wall_s": res.runtime_s,

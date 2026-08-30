@@ -1,0 +1,30 @@
+{
+  "family": "age-structured-maturity",
+  "params": {
+    "n0": 4.0516748698709275,
+    "mu_max": 2.4246903493616667,
+    "maturation_rate": 4.975623009231756,
+    "carrying_capacity": 45931.50215675589,
+    "death_rate": 2.336051966180698e-47
+  },
+  "n_params": 5,
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 1.2747146668843925,
+  "metrics": {
+    "holdout_smape": 2.0,
+    "holdout_mase": 39.78007919454317,
+    "holdout_log_rmse": 31.30845026941188,
+    "fit_r2": -0.5775243756450512,
+    "fit_log_rmse": 6.1267255303203285,
+    "aic": 575.5500560293012,
+    "implied_doubling_h": 0.0009142130098860049,
+    "plausibility": 0.7000279781251134
+  },
+  "is_valid": true,
+  "score": 2.0
+}

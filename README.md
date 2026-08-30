@@ -107,5 +107,8 @@ whole pipeline run with no download.
   timeout, an AST import allowlist, a temp CWD and a scrubbed env — not a hard security
   boundary. Fine for local research; do not run untrusted configs unattended.
 - DeepSeek pricing in the scorecard is a placeholder (`DEEPSEEK_PRICE_IN/OUT` to override).
+- `deepseek-v4-flash` reasons by default; the client sends `thinking: {type: disabled}`
+  unless `LoopConfig.thinking` is set (which also raises the token budget to fit the
+  reasoning trace).
 - Family de-duplication trusts the agent-declared `FAMILY` string.
 - Demo #1 is well-mixed only — no spatial structure.
