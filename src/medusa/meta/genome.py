@@ -129,15 +129,20 @@ class Genome:
 
         lib = self.components.get("helper_library")
         if lib is not None:
-            for block in _CODE_BLOCK.findall(lib):
-                ns: dict = {}
+            if lib.count("```") % 2 != 0:
+                return False, "helper_library has unbalanced ``` fences"
+            blocks = [b for b in _CODE_BLOCK.findall(lib) if b.strip()]
+            if len(blocks) < 2:
+                return False, "helper_library lost its snippets (<2 non-empty code blocks)"
+            import ast
+            for block in blocks:
                 try:
-                    import numpy  # noqa: F401
-                    import scipy  # noqa: F401
-
-                    exec(compile(block, "helper", "exec"), ns)  # noqa: S102
-                except Exception as exc:  # a snippet that won't even import/compile
-                    return False, f"helper_library snippet failed: {exc!r}"
+                    tree = ast.parse(block)
+                except SyntaxError as exc:
+                    return False, f"helper_library snippet does not parse: {exc}"
+                if not any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                           for n in tree.body):
+                    return False, "a helper_library snippet defines no function"
         return True, "ok"
 
     def diff_summary(self, base: LoopConfig) -> str:

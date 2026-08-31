@@ -35,20 +35,18 @@ Line 2:  `WHY: <2-3 sentences tying this to the reflection>`
 Then, for a **knob**:
 `KNOB: <number or true/false>`
 
-For a **component**, a SURGICAL find/replace -- two fenced blocks. FIND must be an
-EXACT substring of the component's current text (shown below in full). To add new text,
-put a short unique anchor from the current text in FIND and include it again in REPLACE:
+For a **component**, a SURGICAL find/replace using these exact sentinel lines (NOT code
+fences -- the content may itself contain ``` ):
 
-FIND:
-```
-<exact current substring>
-```
-REPLACE:
-```
-<what it becomes>
-```
+<<<FIND
+<an EXACT substring of the component's current text, shown below in full>
+<<<REPLACE
+<what that substring becomes>
+<<<END
 
-Change ONE small thing. Do not rewrite whole prompts, do not touch the interface/contract.
+To ADD text, make FIND a short unique anchor from the current text and repeat that
+anchor inside REPLACE. Change ONE small thing; keep it well under a 40% size change;
+never touch an interface/contract line.
 """
 
 META_ITERATION_TEMPLATE = """\
@@ -147,12 +145,13 @@ def parse_proposal(text: str) -> dict | None:
         val = raw.lower() == "true" if raw.lower() in ("true", "false") else float(raw)
         return {"touched": touched, "rationale": why, "knob": {touched: val}}
 
-    # component: a surgical FIND / REPLACE pair
-    fr = re.search(r"FIND:\s*```[a-zA-Z0-9_:.-]*\s*\n(.*?)```\s*REPLACE:\s*"
-                   r"```[a-zA-Z0-9_:.-]*\s*\n(.*?)```", text, re.DOTALL)
+    # component: a surgical FIND / REPLACE using sentinel lines (robust to ``` in content)
+    fr = re.search(
+        r"<<<FIND[ \t]*\n(.*?)\n<<<REPLACE[ \t]*\n(.*?)\n<<<END", text, re.DOTALL
+    )
     if fr:
         return {"touched": touched, "rationale": why,
-                "edit": {"find": fr.group(1).rstrip("\n"), "replace": fr.group(2).rstrip("\n")}}
+                "edit": {"find": fr.group(1), "replace": fr.group(2)}}
     return None
 
 
@@ -162,8 +161,8 @@ _CANNED = [
     "TOUCHED: archive_summary_top_k\nWHY: canned -- show fewer families back\nKNOB: 4",
     "TOUCHED: temperature\nWHY: canned -- cool it for consistency\nKNOB: 0.45",
     ("TOUCHED: diversity_nudge_text\nWHY: canned -- blunter diversity ask\n\n"
-     "FIND:\n```\nmaterially different structure\n```\nREPLACE:\n```\n"
-     "materially different structure (new state variables, not a re-tune)\n```"),
+     "<<<FIND\nmaterially different structure\n<<<REPLACE\n"
+     "materially different structure (new state variables, not a re-tune)\n<<<END"),
 ]
 
 
