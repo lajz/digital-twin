@@ -293,6 +293,8 @@ ITERATION_TEMPLATE = """\
 
 {previous_section}
 
+{critic_note}
+
 {diversity_nudge}
 
 Write the next `twin.py`. One ```python block, nothing else.
@@ -318,6 +320,7 @@ def render_iteration(
     previous_section: str,
     helper_library: str = "",
     diversity_nudge: str = "",
+    critic_note: str = "",
 ) -> str:
     fields = {
         "datasheet": datasheet.strip(),
@@ -326,9 +329,13 @@ def render_iteration(
         "archive_summary": archive_summary.strip(),
         "previous_section": previous_section.strip(),
         "diversity_nudge": diversity_nudge.strip(),
+        "critic_note": critic_note.strip(),
     }
     # tolerate templates (e.g. an evolved one) that omit some slots
+    import re
     import string
 
     present = {name for _, name, _, _ in string.Formatter().parse(template) if name}
-    return template.format(**{k: v for k, v in fields.items() if k in present})
+    out = template.format(**{k: v for k, v in fields.items() if k in present})
+    # an empty slot (e.g. critic off) must leave no trace -> collapse blank runs
+    return re.sub(r"\n{3,}", "\n\n", out).strip() + "\n"

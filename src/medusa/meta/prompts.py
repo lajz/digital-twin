@@ -27,6 +27,12 @@ you are given. You may change one **component** (a piece of text the inner loop 
 
 You may NOT change the model, timeouts, runtime budgets, or token limits.
 
+One lever pairs up: `critic_enabled` / `critic_every` turn on an in-run critic that
+appends a short natural-language note to every Nth iteration's prompt, and `critic_prompt`
+is that critic's instructions. It costs extra tokens each time it fires (charged to the
+cost objective) -- enable it only if the reflection shows the loop plateauing or stuck on
+one model family.
+
 ## Output format -- follow EXACTLY
 
 Line 1:  `TOUCHED: <component-or-knob name>`
@@ -83,7 +89,7 @@ _CODE_BLOCK = re.compile(r"```[a-zA-Z0-9_:.-]*\s*\n(.*?)```", re.DOTALL)
 # components worth showing the meta-agent for a series-only meta-suite
 MENU_COMPONENTS = (
     "helper_library", "iteration_template", "diversity_nudge_text",
-    "first_iteration_text", "system_prompt", "system_prompt_saas",
+    "first_iteration_text", "critic_prompt", "system_prompt", "system_prompt_saas",
 )
 
 
@@ -163,6 +169,8 @@ _CANNED = [
     ("TOUCHED: diversity_nudge_text\nWHY: canned -- blunter diversity ask\n\n"
      "<<<FIND\nmaterially different structure\n<<<REPLACE\n"
      "materially different structure (new state variables, not a re-tune)\n<<<END"),
+    ("TOUCHED: critic_enabled\nWHY: canned -- the loop is plateauing on one family; "
+     "try the in-run critic\nKNOB: true"),
 ]
 
 

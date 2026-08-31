@@ -15,12 +15,20 @@ from medusa.data import build, datasets, fetch
 def _cfg_from_args(args: argparse.Namespace) -> LoopConfig:
     overrides = {}
     for field in ("model", "temperature", "max_iters", "target_smape",
-                  "min_families", "diversity_nudge_every"):
+                  "min_families", "diversity_nudge_every", "critic_every"):
         val = getattr(args, field, None)
         if val is not None:
             overrides[field] = val
     if getattr(args, "thinking", False):
         overrides["thinking"] = True
+    stance = getattr(args, "critic_stance", None)
+    if stance:
+        from medusa import critic
+
+        overrides["critic_stance"] = stance
+        overrides["critic_prompt"] = critic.prompt_for_stance(stance)
+    if getattr(args, "critic", False) or stance:
+        overrides["critic_enabled"] = True
     return dataclasses.replace(DEFAULT_LOOP_CONFIG, **overrides)
 
 
@@ -96,6 +104,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     print(f"improvement AUC:         {sc.improvement_auc:.3f}")
     print(f"iters to target:         {sc.iters_to_target}")
     print(f"tokens (prompt/resp):    {sc.total_prompt_tokens} / {sc.total_response_tokens}")
+    if sc.critic_response_tokens:
+        print(f"  of which critic:       {sc.critic_prompt_tokens} / {sc.critic_response_tokens}")
     print(f"est. cost:               ${sc.usd_cost:.4f}")
     print(f"\nportfolio: {result.run_dir / 'portfolio' / 'portfolio.md'}")
     for e in result.archive.portfolio():
@@ -313,6 +323,12 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--min-families", dest="min_families", type=int)
         sp.add_argument("--diversity-nudge-every", dest="diversity_nudge_every", type=int)
         sp.add_argument("--thinking", action="store_true")
+        sp.add_argument("--critic", action="store_true",
+                        help="enable the in-run critic (soft NL feedback into each prompt)")
+        sp.add_argument("--critic-stance", dest="critic_stance", choices=("coach", "skeptic"),
+                        help="critic stance to seed (implies --critic)")
+        sp.add_argument("--critic-every", dest="critic_every", type=int,
+                        help="run the critic every Nth scored iteration")
 
     r = sub.add_parser("run", help="run the feedback loop on the processed dataset")
     add_loop_args(r)

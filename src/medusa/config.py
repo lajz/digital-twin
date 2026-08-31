@@ -12,7 +12,7 @@ import json
 import os
 from pathlib import Path
 
-from medusa import prompts, toolkit
+from medusa import critic, prompts, toolkit
 
 # --- paths -------------------------------------------------------------------
 
@@ -86,6 +86,17 @@ class LoopConfig:
     diversity_nudge_every: int = 3  # every Nth iter, push for an unexplored family
     context_obs_max_points: int = 60  # downsample fit-window table to <= this many rows
     archive_summary_top_k: int = 6  # families to describe back to the agent
+
+    # in-run critic -- soft NL feedback into the next iteration's prompt (OFF by default)
+    critic_enabled: bool = False
+    critic_every: int = 1              # run the critic every Nth scored iteration
+    critic_stance: str = "coach"      # provenance label + CLI seed selector: "coach"|"skeptic"
+    critic_prompt: str = critic.COACH_PROMPT           # the critic's SYSTEM prompt (evolvable)
+    critic_context_template: str = critic.CRITIC_CONTEXT_TEMPLATE
+    critic_model: str | None = None   # None -> reuse `model`
+    critic_temperature: float = 0.4
+    critic_max_tokens: int = 1200     # 120-word note + slack; hard stop on prompt bloat
+    critic_recent_trace_rows: int = 4
 
     # harness
     candidate_timeout_s: float = 20.0

@@ -30,6 +30,8 @@ class LoopMetrics:
     total_response_tokens: int
     usd_cost: float
     wall_s_total: float
+    critic_prompt_tokens: int = 0       # of the totals above, the share spent on the in-run critic
+    critic_response_tokens: int = 0
 
     def to_dict(self) -> dict:
         return dataclasses.asdict(self)
@@ -86,8 +88,10 @@ def loop_scorecard(
     )
 
     fam = {r.get("family") for r in valid if r.get("family")}
-    prompt_tok = sum(int(r.get("prompt_tokens") or 0) for r in rows)
-    resp_tok = sum(int(r.get("response_tokens") or 0) for r in rows)
+    crit_prompt_tok = sum(int(r.get("critic_prompt_tokens") or 0) for r in rows)
+    crit_resp_tok = sum(int(r.get("critic_response_tokens") or 0) for r in rows)
+    prompt_tok = sum(int(r.get("prompt_tokens") or 0) for r in rows) + crit_prompt_tok
+    resp_tok = sum(int(r.get("response_tokens") or 0) for r in rows) + crit_resp_tok
 
     return LoopMetrics(
         dataset=meta.get("dataset", "unknown"),
@@ -102,4 +106,6 @@ def loop_scorecard(
         total_response_tokens=resp_tok,
         usd_cost=prompt_tok / 1e6 * price_in + resp_tok / 1e6 * price_out,
         wall_s_total=sum(float(r.get("wall_s") or 0.0) for r in rows),
+        critic_prompt_tokens=crit_prompt_tok,
+        critic_response_tokens=crit_resp_tok,
     )
