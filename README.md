@@ -7,18 +7,28 @@ own calibration code, a deterministic harness scores that model against real
 observational data, and the score feeds back into the next iteration. Over many rounds
 the loop returns a **ranked portfolio of distinct model families**.
 
-It twins a real *E. coli* microcolony from public microscopy time-lapse data, at three
-levels of fidelity:
+The loop is **domain-agnostic** — a `Domain` adapter (`src/medusa/domains/`) supplies the
+only three subject-specific pieces: the data reduction, what's scored (`Task`), and the
+agent's instructions. `uv run medusa domains` lists them.
 
-| level | dataset | twin state | scored on |
+**Bacterial microcolony** (real public microscopy), at three fidelity levels:
+
+| level | domain | twin state | scored on |
 |---|---|---|---|
 | **L0** population | `ipb-ecoli` | scalar `N(t)` | count vs time |
-| **L1** size-structured | `ipb-ecoli-structured` | cell-size distribution | count, biomass, mean length, length CV |
-| **L2** spatial | `ipb-ecoli-spatial` | every cell a rod `(x, y, θ, ℓ)` | count, biomass, radius of gyration, aspect, nematic order, nearest-neighbour distance — **plus side-by-side renders of the twin vs reality** |
+| **L1** size-structured | `ipb-ecoli-structured` | cell-size distribution | count, biomass, mean length, CV |
+| **L2** spatial | `ipb-ecoli-spatial` | every cell a rod `(x, y, θ, ℓ)` | count, biomass, radius of gyration, aspect, nematic order, neighbour distance — **plus side-by-side renders** |
 
-Model fidelity has to match data fidelity: each level feeds the agent more of the
-microscopy and asks for a more mechanistic model (growth law → elongation + division →
-elongation + division + mechanics).
+**A SaaS business** (`saas-seed`, synthetic): the twin models customer acquisition /
+churn / expansion / headcount / cash, is handed the company's *planned* levers
+(marketing spend, capital raised) over the whole horizon, and must produce a forecast
+that both fits the history and **obeys the accounting identities exactly** —
+`cash[t] = cash[t-1] + net_income[t] + capital_raised[t]`, `customers[t] ≤ customers[t-1]
++ new_customers[t]`. Those are hard constraints (`Domain.constraints`): a twin that
+breaks one is rejected, unscored — free plausibility, no tuning.
+
+Model fidelity has to match data fidelity: each level/domain feeds the agent more of the
+data and asks for a more mechanistic model.
 
 ```
 prompt ──▶ DeepSeek v4-flash ──▶ twin.py ──▶ harness (sandbox + score) ──▶ feedback
@@ -34,10 +44,13 @@ uv sync
 # exercise the whole loop with canned twins -- no API key, no cost
 uv run medusa run --dry-run --iters 4
 
+uv run medusa domains                # list registered domain adapters
+
 # real runs (need DEEPSEEK_API_KEY in .env or the environment)
 uv run medusa run --dataset ipb-ecoli          --iters 12   # L0
 uv run medusa run --dataset ipb-ecoli-structured --iters 12  # L1
 uv run medusa run --dataset ipb-ecoli-spatial  --iters 10    # L2  -> runs/<ts>/demo.html
+uv run medusa run --dataset saas-seed          --iters 12   # a SaaS business
 
 uv run medusa bench --dry-run        # score the loop itself across the suite
 uv run medusa report                 # reprint the latest run's scorecard + portfolio
@@ -78,7 +91,30 @@ series), forecast the **holdout window** (never shown to the agent), then comput
 `holdout_smape` (primary rank key), `holdout_mase`, `fit_r2`, `aic`, and a
 **plausibility** score — the model's implied doubling time vs. the datasheet's
 ground-truth range. A candidate is disqualified if it crashes, is non-deterministic,
-runs over budget, or is biologically implausible.
+runs over budget, is implausible, or **violates a domain constraint** (an identity that
+must hold — a cash balance, a conservation law).
+
+## Adding a domain
+
+Everything subject-specific lives behind one interface (`medusa/domains/base.py`):
+
+```python
+from medusa.domains import register
+from medusa.domains.base import Domain, flow_balance, non_negative
+
+register(Domain(
+    name="my-thing",
+    task=Task(name="my-thing", observables=(...), weights={...},
+              plausibility={...}, exogenous=(...), period_label="mo"),
+    build=my_build_fn,               # raw data -> Dataset (observations + split)
+    system_prompt=MY_SYSTEM_PROMPT,  # the agent's instructions for this subject
+    kind="business",
+    constraints=(non_negative("x"), flow_balance("cash", "net_income")),
+))
+```
+
+The loop, sandbox, archive, portfolio, scorecard, renderers and `medusa play/demo` are
+all generic. `medusa/domains/{ecoli,saas,synthetic_growth}.py` are the built-ins.
 
 ## The loop is built to score — and later improve — itself
 

@@ -76,6 +76,8 @@ class LoopConfig:
     system_prompt: str = prompts.SYSTEM_PROMPT
     system_prompt_structured: str = prompts.STRUCTURED_SYSTEM_PROMPT
     system_prompt_spatial: str = prompts.SPATIAL_SYSTEM_PROMPT
+    # set to override the domain's own system prompt (the meta-loop's hook)
+    system_prompt_override: str | None = None
     iteration_template: str = prompts.ITERATION_TEMPLATE
     diversity_nudge_every: int = 3  # every Nth iter, push for an unexplored family
     context_obs_max_points: int = 60  # downsample fit-window table to <= this many rows

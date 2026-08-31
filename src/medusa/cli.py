@@ -60,6 +60,15 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_domains(args: argparse.Namespace) -> int:
+    from medusa import domains
+
+    for d in domains.list_domains():
+        n_con = f"  [{len(d.constraints)} constraints]" if d.constraints else ""
+        print(f"  {d.name:<24} {d.kind:<9} {d.blurb}{n_con}")
+    return 0
+
+
 def cmd_fetch(args: argparse.Namespace) -> int:
     if getattr(args, "dataset", None) == "ipb-ecoli":
         path = fetch.fetch_ipb_ecoli()
@@ -207,6 +216,10 @@ def build_parser() -> argparse.ArgumentParser:
     f.add_argument("--dataset", choices=datasets.REAL_DATASETS, metavar="NAME",
                    help="download this real dataset's raw file into data/raw/")
     f.set_defaults(func=cmd_fetch)
+
+    sub.add_parser("domains", help="list registered domain adapters").set_defaults(
+        func=cmd_domains
+    )
 
     def add_loop_args(sp: argparse.ArgumentParser) -> None:
         sp.add_argument("--dry-run", action="store_true", help="use canned twins, no API")

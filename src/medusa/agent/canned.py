@@ -242,8 +242,94 @@ class Twin:
 '''
 
 
+SAAS_BASS = '''
+import numpy as np
+from scipy.optimize import least_squares
+
+_MONTH_S = 30.0 * 86400.0
+
+
+class Twin:
+    FAMILY = "saturating-acquisition-churn"
+    PARAMS = {
+        "market":         (5e3, 2e5, "accounts"),
+        "acq_per_dollar": (2e-3, 4e-2, "accounts/$"),
+        "monthly_churn":  (4e-3, 0.15, "1/mo"),
+        "arpa0":          (20.0, 400.0, "$/account/mo"),
+        "arpa_growth":    (-0.01, 0.03, "1/mo"),
+        "rev_per_head":   (8e4, 4e5, "$/yr"),
+        "opex_per_head":  (6e3, 2e4, "$/mo"),
+        "fixed_opex":     (0.0, 2e5, "$/mo"),
+    }
+    METADATA = {"assumptions": ["saturating paid acquisition", "constant logo churn",
+                               "ARPA drifts geometrically", "headcount lags revenue (EMA)",
+                               "books close exactly: cash is the running net-income total"],
+               "state_vars": ["customers", "cash"], "refs": ["Bass 1969", "Skok LTV/CAC"]}
+
+    def _run(self, p, months, spend, capital, c0, cash0, hc0):
+        market, acq, churn, arpa0, ag, rph, oph, fx = p
+        n = len(months)
+        cust = np.zeros(n); newc = np.zeros(n); hc = np.zeros(n)
+        mrr = np.zeros(n); ni = np.zeros(n); cash = np.zeros(n)
+        cust[0] = c0; hc[0] = hc0
+        for i in range(n):
+            arpa = arpa0 * (1.0 + ag) ** i
+            if i > 0:
+                newc[i] = acq * spend[i] * max(0.0, 1.0 - cust[i-1] / market)
+                cust[i] = cust[i-1] + newc[i] - churn * cust[i-1]
+                tgt = cust[i] * arpa * 12.0 / rph
+                hc[i] = hc[i-1] + 0.25 * (tgt - hc[i-1])
+            else:
+                newc[i] = acq * spend[i]
+            mrr[i] = cust[i] * arpa
+            ni[i] = mrr[i] - hc[i] * oph - fx - spend[i]
+            cash[i] = (cash[i-1] if i else cash0) + ni[i] + capital[i]
+        return {"mrr": mrr, "customers": cust, "new_customers": newc,
+                "headcount": hc, "net_income": ni, "cash": cash}
+
+    def fit(self, obs):
+        t = np.asarray(obs.time_s, float) / _MONTH_S
+        months = np.arange(len(t))
+        spend = np.asarray(obs.marketing_spend, float)
+        capital = np.asarray(obs.capital_raised, float)
+        mrr = np.clip(np.asarray(obs.mrr, float), 1.0, None)
+        cust = np.clip(np.asarray(obs.customers, float), 1.0, None)
+        self._c0, self._cash0, self._hc0 = float(cust[0]), float(obs.cash[0]), float(obs.headcount[0])
+
+        lo = np.array([b[0] for b in self.PARAMS.values()])
+        hi = np.array([b[1] for b in self.PARAMS.values()])
+        p0 = np.array([max(cust[-1] * 3, 6e3), 0.011, 0.03,
+                       float(np.clip(mrr[0] / cust[0], 21, 399)), 0.004,
+                       1.6e5, 1.1e4, 2e4])
+        p0 = np.clip(p0, lo, hi)
+
+        def resid(p):
+            r = self._run(p, months, spend, capital, self._c0, self._cash0, self._hc0)
+            return np.concatenate([
+                np.log(np.clip(r["mrr"], 1.0, None)) - np.log(mrr),
+                np.log(np.clip(r["customers"], 1.0, None)) - np.log(cust),
+            ])
+
+        sol = least_squares(resid, p0, bounds=(lo, hi), max_nfev=400)
+        v = np.clip(sol.x, lo, hi)
+        return dict(zip(self.PARAMS, (float(x) for x in v)))
+
+    def predict(self, params, time_s, exog=None):
+        t = np.asarray(time_s, float) / _MONTH_S
+        months = np.arange(len(t))
+        exog = exog or {}
+        spend = np.asarray(exog.get("marketing_spend", np.full(len(t), 1e5)), float)
+        capital = np.asarray(exog.get("capital_raised", np.zeros(len(t))), float)
+        p = np.array([params[k] for k in self.PARAMS])
+        return self._run(p, months, spend, capital,
+                         getattr(self, "_c0", 400.0), getattr(self, "_cash0", 8e5),
+                         getattr(self, "_hc0", 8.0))
+'''
+
+
 CANNED_SEQUENCE = [LOGISTIC, GOMPERTZ, BARANYI_ODE, RICHARDS]
 STRUCTURED_SEQUENCE = [STRUCTURED_COUPLED, GOMPERTZ, LOGISTIC]
+SAAS_SEQUENCE = [SAAS_BASS]
 
 
 def _spatial_sequence() -> list[str]:
@@ -254,10 +340,9 @@ def _spatial_sequence() -> list[str]:
 
 def wrapped_sequence(task_name: str = "population") -> list[str]:
     """Canned sources for the given task, fenced as the model would return them."""
-    if task_name == "spatial":
-        seq = _spatial_sequence()
-    elif task_name == "structured":
-        seq = STRUCTURED_SEQUENCE
-    else:
-        seq = CANNED_SEQUENCE
+    seq = {
+        "spatial": _spatial_sequence,
+        "structured": lambda: STRUCTURED_SEQUENCE,
+        "saas": lambda: SAAS_SEQUENCE,
+    }.get(task_name, lambda: CANNED_SEQUENCE)()
     return [f"```python\n{s.strip()}\n```" for s in seq]

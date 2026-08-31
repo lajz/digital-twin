@@ -43,6 +43,7 @@ class EvalResult:
     runtime_s: float = 0.0
     metrics: dict = dataclasses.field(default_factory=dict)
     per_observable: dict = dataclasses.field(default_factory=dict)
+    constraint_violation: str | None = None
 
     @property
     def is_valid(self) -> bool:
@@ -51,6 +52,7 @@ class EvalResult:
             and not self.crashed
             and not self.nondeterministic
             and not self.over_budget
+            and self.constraint_violation is None
             and self.metrics.get("plausibility", 0.0) >= PLAUSIBILITY_FLOOR
             and np.isfinite(self.metrics.get("holdout_smape", np.inf))
         )
@@ -136,18 +138,37 @@ def evaluate_source(source: str, dataset: Dataset, cfg: LoopConfig) -> EvalResul
 # --- series (population / structured) -------------------------------------------
 
 
+def _exog(obs, task):
+    return {k: obs.channel(k) for k in task.exogenous if k in obs.channels()}
+
+
+def _call_predict(twin, params, time_s, exog):
+    """Pass exog only if the twin's predict accepts a third positional arg."""
+    import inspect
+
+    try:
+        n = len(inspect.signature(twin.predict).parameters)
+    except (TypeError, ValueError):
+        n = 2
+    return twin.predict(params, time_s, exog) if n >= 3 else twin.predict(params, time_s)
+
+
 def _eval_series(twin, dataset: Dataset, cfg: LoopConfig, res: EvalResult) -> None:
     task = dataset.task
+    full = dataset.observations
     fit_obs, holdout_obs = dataset.fit, dataset.holdout
+    n_fit = len(fit_obs)
+    # the twin always sees the whole timeline + the full exogenous plan; the harness
+    # slices out the holdout for scoring. This is correct for stateful models.
+    exog_full = _exog(full, task)
 
     t0 = time.perf_counter()
     params = dict(twin.fit(fit_obs))
-    pred_fit = _normalize_prediction(twin.predict(params, fit_obs.time_s), fit_obs.time_s)
-    pred_hold = _normalize_prediction(
-        twin.predict(params, holdout_obs.time_s), holdout_obs.time_s
+    pred_full = _normalize_prediction(
+        _call_predict(twin, params, full.time_s, exog_full), full.time_s
     )
-    pred_hold2 = _normalize_prediction(
-        twin.predict(params, holdout_obs.time_s), holdout_obs.time_s
+    pred_full2 = _normalize_prediction(
+        _call_predict(twin, params, full.time_s, exog_full), full.time_s
     )
     res.runtime_s = time.perf_counter() - t0
     res.over_budget = res.runtime_s > cfg.twin_runtime_budget_s
@@ -159,15 +180,43 @@ def _eval_series(twin, dataset: Dataset, cfg: LoopConfig, res: EvalResult) -> No
         res.error = "fitted params violate the contract"
         return
 
+    for k, v in pred_full.items():
+        if np.asarray(v).shape != full.time_s.shape or not np.all(np.isfinite(v)):
+            res.crashed = True
+            res.error = f"predict channel {k!r}: wrong shape or non-finite values"
+            return
+
     res.nondeterministic = any(
-        k not in pred_hold2 or not np.allclose(pred_hold[k], pred_hold2[k], atol=0, rtol=0)
-        for k in pred_hold
+        k not in pred_full2 or not np.allclose(pred_full[k], pred_full2[k], atol=0, rtol=0)
+        for k in pred_full
     )
+
+    pred_fit = {k: v[:n_fit] for k, v in pred_full.items()}
+    pred_hold = {k: v[n_fit:] for k, v in pred_full.items()}
+
+    _check_domain_constraints(res, dataset, pred_full)
 
     combined, per = metrics.multi_smape(pred_hold, holdout_obs, task.observables, task)
     res.per_observable = per
     _finish_metrics(res, dataset, combined, per, pred_fit, fit_obs, pred_hold, holdout_obs)
     res.passed_checks = True
+
+
+def _check_domain_constraints(res, dataset, pred_full: dict) -> None:
+    from medusa import domains
+
+    dom = domains.get(dataset.name)
+    if dom is None or not dom.constraints:
+        return
+    full = dict(pred_full)
+    for k in dataset.task.exogenous:
+        try:
+            full.setdefault(k, dataset.observations.channel(k))
+        except KeyError:
+            pass
+    bad = dom.check_constraints(full, dataset)
+    if bad is not None:
+        res.constraint_violation = f"{bad.name}: {bad.detail}"
 
 
 # --- spatial (agent-based rollout) ---------------------------------------------
@@ -281,21 +330,41 @@ def _mean_summary(series_list):
 
 
 def _finish_metrics(res, dataset, combined, per, pred_fit, fit_obs, pred_hold, holdout_obs):
-    biomass_key = "total_length_um" if "total_length_um" in pred_fit else "population_count"
-    full_t = np.concatenate([fit_obs.time_s, holdout_obs.time_s])
-    full_y = np.concatenate([pred_fit[biomass_key], pred_hold[biomass_key]])
-    implied_td = metrics.doubling_time_from_series_h(full_t, full_y)
-
+    task = dataset.task
     gt = dataset.split.get("ground_truth", {}) or {}
-    td_lo, td_hi = gt.get("td_plausible_h") or dataset.task.plausibility.get(
-        "doubling_time_h", DEFAULT_TD_PLAUSIBLE_H
-    )
-    plaus = metrics.plausibility(implied_td, td_lo, td_hi)
+    plaus = 1.0
 
-    if "mean_length_um" in dataset.task.plausibility and "total_length_um" in pred_hold:
+    biomass_key = next(
+        (k for k in ("total_length_um", "population_count") if k in pred_fit and k in pred_hold),
+        None,
+    )
+    if biomass_key is not None:
+        full_t = np.concatenate([fit_obs.time_s, holdout_obs.time_s])
+        full_y = np.concatenate([pred_fit[biomass_key], pred_hold[biomass_key]])
+        implied_td = metrics.doubling_time_from_series_h(full_t, full_y)
+    else:
+        implied_td = float("nan")
+
+    # doubling-time plausibility: only for domains that ask for it
+    td_band = gt.get("td_plausible_h") or task.plausibility.get("doubling_time_h")
+    if td_band is not None:
+        plaus = min(plaus, metrics.plausibility(implied_td, td_band[0], td_band[1]))
+
+    if "mean_length_um" in task.plausibility and "total_length_um" in pred_hold:
         ml = pred_hold["total_length_um"] / np.clip(pred_hold["population_count"], 1e-9, None)
-        lo, hi = dataset.task.plausibility["mean_length_um"]
+        lo, hi = task.plausibility["mean_length_um"]
         plaus = min(plaus, metrics.plausibility(float(np.mean(ml)), lo, hi))
+
+    if "arpa_usd" in task.plausibility and {"mrr", "customers"} <= set(pred_hold):
+        arpa = pred_hold["mrr"] / np.clip(pred_hold["customers"], 1e-9, None)
+        lo, hi = task.plausibility["arpa_usd"]
+        plaus = min(plaus, metrics.plausibility(float(np.mean(arpa)), lo, hi))
+
+    if "monthly_churn" in task.plausibility and {"customers", "new_customers"} <= set(pred_hold):
+        c, nc = pred_hold["customers"], pred_hold["new_customers"]
+        implied_churn = np.clip((c[:-1] + nc[1:] - c[1:]) / np.clip(c[:-1], 1.0, None), 0, 1)
+        lo, hi = task.plausibility["monthly_churn"]
+        plaus = min(plaus, metrics.plausibility(float(np.median(implied_churn)), lo, hi))
 
     pop_fit = pred_fit.get("population_count")
     fit_r2 = metrics.r2(fit_obs.population_count, pop_fit) if pop_fit is not None else float("nan")

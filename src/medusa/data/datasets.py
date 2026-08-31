@@ -13,11 +13,16 @@ REAL_DATASETS = ("ipb-ecoli", "ipb-ecoli-structured", "ipb-ecoli-spatial")
 
 
 def list_datasets() -> list[str]:
-    return [*sorted(synthetic.PRESETS), *REAL_DATASETS]
+    from medusa import domains
+
+    return sorted({d.name for d in domains.list_domains()} | set(synthetic.PRESETS))
 
 
 def is_real(name: str) -> bool:
-    return name in REAL_DATASETS
+    from medusa import domains
+
+    dom = domains.get(name)
+    return name in REAL_DATASETS or (dom is not None and dom.kind != "synthetic")
 
 
 def build_dataset(
@@ -32,14 +37,16 @@ def build_dataset(
         kw["processed_dir"] = processed_dir
         kw["datasheet_path"] = datasheet_path or (processed_dir / "datasheet.md")
 
+    from medusa import domains
+
+    dom = domains.get(name)
+    if dom is not None:
+        return dom.build(fit_frac=fit_frac, **kw)
+
     if name in synthetic.PRESETS:
         return build.build_synthetic(name, fit_frac=fit_frac, **kw)
     if name == "ipb-ecoli":
         return fetch.build_ipb_ecoli(fit_frac=fit_frac, **kw)
-    if name == "ipb-ecoli-structured":
-        return fetch.build_ipb_ecoli_structured(fit_frac=fit_frac, **kw)
-    if name == "ipb-ecoli-spatial":
-        return fetch.build_ipb_ecoli_spatial(fit_frac=fit_frac, **kw)
     raise ValueError(
         f"unknown dataset {name!r}; choose from {', '.join(list_datasets())}"
     )

@@ -31,10 +31,12 @@ class ArchiveEntry:
             status = "nondeterministic"
         elif res.over_budget:
             status = "over time budget"
+        elif res.constraint_violation:
+            status = f"constraint: {res.constraint_violation}"
         elif not res.passed_checks:
             status = "failed contract checks"
         else:
-            status = "implausible growth rate"
+            status = "implausible"
         return cls(
             iteration=iteration,
             family=res.family,

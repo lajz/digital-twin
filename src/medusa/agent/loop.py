@@ -174,9 +174,14 @@ def run_loop(
     archive = Archive()
     sources: dict[int, str] = {}
     budget = cfg.runtime_budget_for(dataset.task.name)
-    system_prompt = cfg.system_prompt_for(dataset.task.name).replace(
-        "{twin_runtime_budget_s}", f"{budget:g}"
+
+    from medusa import domains
+
+    dom = domains.get(dataset.name)
+    base_prompt = cfg.system_prompt_override or (
+        dom.system_prompt if dom else cfg.system_prompt_for(dataset.task.name)
     )
+    system_prompt = base_prompt.replace("{twin_runtime_budget_s}", f"{budget:g}")
     fit_table = obs_table(dataset.fit, cfg.context_obs_max_points)
     previous_section = prompts.FIRST_ITERATION_PREVIOUS
     best_seen = float("inf")

@@ -123,6 +123,12 @@ class Task:
     weights: dict[str, float] = dataclasses.field(default_factory=dict)
     plausibility: dict[str, list[float]] = dataclasses.field(default_factory=dict)
     mode: str = "series"  # "series" (twin.predict) | "spatial" (twin.simulate)
+    # channels that are inputs, not scored outputs -- provided to the twin over the
+    # full horizon (e.g. a business's planned marketing spend, capital raised)
+    exogenous: tuple[str, ...] = ()
+    # for plotting: the natural period and its label
+    period_s: float = 3600.0
+    period_label: str = "h"
 
     def weight(self, observable: str) -> float:
         return float(self.weights.get(observable, 1.0))
@@ -138,6 +144,9 @@ class Task:
             "weights": dict(self.weights),
             "plausibility": {k: list(v) for k, v in self.plausibility.items()},
             "mode": self.mode,
+            "exogenous": list(self.exogenous),
+            "period_s": self.period_s,
+            "period_label": self.period_label,
         }
 
     @classmethod
@@ -148,6 +157,9 @@ class Task:
             weights=dict(d.get("weights", {})),
             plausibility={k: list(v) for k, v in d.get("plausibility", {}).items()},
             mode=d.get("mode", "series"),
+            exogenous=tuple(d.get("exogenous", ())),
+            period_s=d.get("period_s", 3600.0),
+            period_label=d.get("period_label", "h"),
         )
 
 
