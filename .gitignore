@@ -10,4 +10,5 @@ __pycache__/
 /data/
 /runs/*
 !/runs/sample/
+/scripts/medusa-demo.html
 .env
