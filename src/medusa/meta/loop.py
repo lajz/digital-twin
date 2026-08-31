@@ -131,26 +131,40 @@ def run_meta_loop(
         if proposal is None:
             reject = "no parseable proposal"
         else:
-            child = parent_entry.genome.child(
-                component=proposal.get("component"), knob=proposal.get("knob"),
-                rationale=proposal.get("rationale", ""), generation=gen,
-            )
-            ok, msg = child.validates()
-            if child.touched == "" or child.genome_id == parent_entry.genome.genome_id:
-                ok, msg = False, "proposal changed nothing (unknown component/knob or a no-op)"
-            if not ok:
-                reject = msg
-            else:
-                ct = _eval(child, train, f"gen_{gen:02d}_train")
-                cv = _eval(child, val, f"gen_{gen:02d}_val")
-                entry = GenomeEntry(child, ct, cv)
-                archive.add(entry)
-                last_child = entry
-                (gdir / "genome.json").write_text(json.dumps(child.to_dict(), indent=2))
-                (gdir / "outcome.json").write_text(json.dumps({
-                    "touched": child.touched, "diff": child.diff_summary(base),
-                    "train": ct.to_dict(), "val": cv.to_dict(),
-                }, indent=2, default=str))
+            component = proposal.get("component")
+            if proposal.get("edit"):  # surgical FIND/REPLACE on the effective current text
+                name = proposal["touched"]
+                cur = parent_entry.genome.components.get(name, getattr(base, name, ""))
+                find, repl = proposal["edit"]["find"], proposal["edit"]["replace"]
+                if not find or find not in cur:
+                    reject = f"FIND block is not an exact substring of `{name}`"
+                else:
+                    new = cur.replace(find, repl, 1)
+                    if len(new) < 0.6 * len(cur) or len(new) > 2.5 * len(cur):
+                        reject = f"edit changes `{name}` size by too much ({len(cur)}->{len(new)})"
+                    else:
+                        component = {name: new}
+            if reject is None:
+                child = parent_entry.genome.child(
+                    component=component, knob=proposal.get("knob"),
+                    rationale=proposal.get("rationale", ""), generation=gen,
+                )
+                ok, msg = child.validates()
+                if child.touched == "" or child.genome_id == parent_entry.genome.genome_id:
+                    ok, msg = False, "proposal changed nothing (unknown component/knob or a no-op)"
+                if not ok:
+                    reject = msg
+        if reject is None and child is not None:
+            ct = _eval(child, train, f"gen_{gen:02d}_train")
+            cv = _eval(child, val, f"gen_{gen:02d}_val")
+            entry = GenomeEntry(child, ct, cv)
+            archive.add(entry)
+            last_child = entry
+            (gdir / "genome.json").write_text(json.dumps(child.to_dict(), indent=2))
+            (gdir / "outcome.json").write_text(json.dumps({
+                "touched": child.touched, "diff": child.diff_summary(base),
+                "train": ct.to_dict(), "val": cv.to_dict(),
+            }, indent=2, default=str))
         if reject is not None:
             (gdir / "outcome.json").write_text(json.dumps(
                 {"rejected": reject, "response": completion.text[:2000]}))

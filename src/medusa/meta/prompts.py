@@ -31,16 +31,24 @@ You may NOT change the model, timeouts, runtime budgets, or token limits.
 
 Line 1:  `TOUCHED: <component-or-knob name>`
 Line 2:  `WHY: <2-3 sentences tying this to the reflection>`
-Then, for a **knob**, line 3:  `KNOB: <number or true/false>`
-or, for a **component**, a single fenced code block with the COMPLETE new text of
-that component (any characters allowed inside -- do not escape anything):
 
+Then, for a **knob**:
+`KNOB: <number or true/false>`
+
+For a **component**, a SURGICAL find/replace -- two fenced blocks. FIND must be an
+EXACT substring of the component's current text (shown below in full). To add new text,
+put a short unique anchor from the current text in FIND and include it again in REPLACE:
+
+FIND:
 ```
-<the entire new component text>
+<exact current substring>
+```
+REPLACE:
+```
+<what it becomes>
 ```
 
-Nothing else. When you rewrite a component, start from its CURRENT text (shown below in
-full) and make a SMALL, surgical edit -- do not invent a new contract.
+Change ONE small thing. Do not rewrite whole prompts, do not touch the interface/contract.
 """
 
 META_ITERATION_TEMPLATE = """\
@@ -139,21 +147,23 @@ def parse_proposal(text: str) -> dict | None:
         val = raw.lower() == "true" if raw.lower() in ("true", "false") else float(raw)
         return {"touched": touched, "rationale": why, "knob": {touched: val}}
 
-    blocks = _CODE_BLOCK.findall(text)
-    if not blocks:
-        return None
-    return {"touched": touched, "rationale": why,
-            "component": {touched: max(blocks, key=len).strip()}}
+    # component: a surgical FIND / REPLACE pair
+    fr = re.search(r"FIND:\s*```[a-zA-Z0-9_:.-]*\s*\n(.*?)```\s*REPLACE:\s*"
+                   r"```[a-zA-Z0-9_:.-]*\s*\n(.*?)```", text, re.DOTALL)
+    if fr:
+        return {"touched": touched, "rationale": why,
+                "edit": {"find": fr.group(1).rstrip("\n"), "replace": fr.group(2).rstrip("\n")}}
+    return None
 
 
 # --- canned meta client (dry-run: no API) --------------------------------------
 
 _CANNED = [
-    "TOUCHED: diversity_nudge_every\nWHY: canned -- push families sooner\nKNOB: 2",
+    "TOUCHED: archive_summary_top_k\nWHY: canned -- show fewer families back\nKNOB: 4",
     "TOUCHED: temperature\nWHY: canned -- cool it for consistency\nKNOB: 0.45",
-    ("TOUCHED: diversity_nudge_text\nWHY: canned -- blunter diversity ask\n\n```\n"
-     "THIS ROUND: a mechanistic family not yet listed -- different state variables or a "
-     "different closure, not the same model re-tuned.\n```"),
+    ("TOUCHED: diversity_nudge_text\nWHY: canned -- blunter diversity ask\n\n"
+     "FIND:\n```\nmaterially different structure\n```\nREPLACE:\n```\n"
+     "materially different structure (new state variables, not a re-tune)\n```"),
 ]
 
 

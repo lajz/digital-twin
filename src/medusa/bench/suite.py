@@ -52,8 +52,10 @@ DEFAULT_SUITE = [n for n, e in SUITE.items() if e.kind == "synthetic"]
 # TEST is touched exactly once, at the end, for the honest number. Spans bacteria +
 # business and several failure modes (long lag, sparse noise, market plateau).
 
-# disjoint. saas-plateau (the flakiest) sits in TRAIN, where its variance only adds
-# exploration pressure; VAL is the stabler datasets so the ranking signal is clean.
+# disjoint. The SaaS datasets are the inner loop's highest-variance targets, so they sit
+# in TRAIN (where their variance just adds exploration pressure -- the digest still sees
+# them) and TEST (the honest business check at the very end). VAL is the three stable
+# bacterial datasets, so the ranking / early-stop signal is clean.
 META_TRAIN = ("synthetic-ecoli-fast", "synthetic-lag-heavy", "saas-plateau")
-META_VAL = ("synthetic-bsub-mid", "synthetic-yeast-slow", "saas-seed")
-META_TEST = ("synthetic-noisy-sparse",)
+META_VAL = ("synthetic-bsub-mid", "synthetic-yeast-slow", "synthetic-noisy-sparse")
+META_TEST = ("saas-seed",)
