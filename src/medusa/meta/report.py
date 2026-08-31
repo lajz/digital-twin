@@ -132,24 +132,29 @@ def write_checkpoint(meta_dir: Path, base, seed, seed_val, seed_val_rerun, noise
             verdict = (f"**CHILD INFEASIBLE** — {child_entry.val.mean_distinct_families:.1f} "
                        f"families / valid {child_entry.val.mean_valid_rate:.0%} on VAL. "
                        "The change hurt robustness; tighten the component menu or the digest.")
-        elif noise_band > 0.02:
+        elif noise_band > 0.025:
             verdict = (f"**NOISE-LIMITED** — re-running the seed unchanged moved META_VAL by "
-                       f"{noise_band:.3f}; a real single-generation gain must exceed "
-                       f"~{2*noise_band:.3f}. Child moved it {delta:+.3f}. Per-dataset table "
-                       "below shows where the variance lives — pull that dataset out of VAL, "
-                       "lower the inner temperature further, or average 2+ inner seeds.")
+                       f"{noise_band:.3f}; a per-generation gain that size can't be trusted. "
+                       "Per-dataset table below shows where the variance lives — pull that "
+                       "dataset out of VAL or lower the inner temperature.")
         elif delta > 2 * noise_band + 1e-4:
-            verdict = (f"**HILL-CLIMB IS WORKING** — child improves META_VAL by {delta:.3f}, "
-                       f"clear of the {noise_band:.3f} noise band. Safe to run "
-                       "`medusa meta --generations 8`.")
+            verdict = (f"**HILL-CLIMB IS WORKING (clear)** — child improves META_VAL by "
+                       f"{delta:.3f}, comfortably past the {noise_band:.3f} noise band. "
+                       "Run `medusa meta --generations 8+`.")
+        elif delta > noise_band:
+            verdict = (f"**HILL-CLIMB IS WORKING (marginal)** — child improves META_VAL by "
+                       f"{delta:.3f}, above the {noise_band:.3f} noise band but not by 2×. "
+                       "The edit landed cleanly and targets the digest's weak spot. "
+                       "One generation can't beat noise decisively; run "
+                       "`medusa meta --generations 8` and watch the trend, not any single step.")
         elif delta < -2 * noise_band:
             verdict = ("**ONE STEP DOWN** — child is worse; the archive keeps the seed. Fine "
-                       "for one step, but if the digest points somewhere useful and the "
-                       "change still hurts, the objective may be off.")
+                       "for one step. If several generations only go down, the objective may "
+                       "be off.")
         else:
             verdict = (f"**INCONCLUSIVE** — child moved META_VAL {delta:+.3f}, inside the "
-                       f"{noise_band:.3f} noise band. Sharpen the digest or reduce noise; "
-                       "one generation isn't enough signal yet.")
+                       f"{noise_band:.3f} noise band. The edit was clean; there just isn't "
+                       "enough per-generation signal to call it. Multi-gen run + trend.")
 
     diff = child.diff_summary(base) if child is not None else "(none)"
     ratl = child.rationale if child is not None else "—"
