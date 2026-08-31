@@ -269,6 +269,18 @@ def run_loop(
     (run_dir / "leaderboard.json").write_text(archive.to_json())
     _write_portfolio(run_dir, archive, sources, dataset)
 
+    if dataset.task.mode == "spatial" and archive.portfolio():
+        try:
+            from medusa.spatial.player import build_player
+
+            top = archive.portfolio()[0]
+            build_player(
+                dataset, sources[top.iteration], top.params, run_dir / "player.html",
+                family=top.family or "twin",
+            )
+        except Exception:  # pragma: no cover - best effort
+            pass
+
     scorecard = loop_scorecard(run_dir, target_smape=cfg.target_smape)
     (run_dir / "scorecard.json").write_text(json.dumps(scorecard.to_dict(), indent=2, default=str))
     try:

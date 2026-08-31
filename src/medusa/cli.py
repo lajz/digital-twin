@@ -123,6 +123,48 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_play(args: argparse.Namespace) -> int:
+    from medusa.data import datasets
+    from medusa.spatial.player import build_player
+
+    run_dir = Path(args.run_dir) if args.run_dir else _latest_run()
+    if run_dir is None or not run_dir.exists():
+        print("no run found")
+        return 1
+    meta = json.loads((run_dir / "meta.json").read_text())
+    if meta.get("task", {}).get("name") != "spatial":
+        print(f"'{meta.get('dataset')}' is not a spatial run; nothing to animate")
+        return 1
+
+    src, params, family = _resolve_twin(run_dir, args)
+    if src is None:
+        print("could not resolve a twin to play")
+        return 1
+
+    ds = datasets.build_dataset(meta["dataset"])
+    out = build_player(ds, src, params, run_dir / "player.html", family=family)
+    print(f"wrote {out}  (open in a browser)")
+    return 0
+
+
+def _resolve_twin(run_dir: Path, args: argparse.Namespace):
+    if getattr(args, "iter", None):
+        idir = run_dir / f"iter_{args.iter:02d}"
+        if (idir / "twin.py").exists():
+            m = json.loads((idir / "metrics.json").read_text())
+            return ((idir / "twin.py").read_text(), m.get("params") or {},
+                    m.get("family") or f"iter {args.iter}")
+    pdir = run_dir / "portfolio"
+    fams = sorted(pdir.glob("[0-9][0-9]_*")) if pdir.exists() else []
+    if getattr(args, "family", None):
+        fams = [d for d in fams if d.name.split("_", 1)[1] == args.family] or fams
+    if fams:
+        d = fams[0]
+        return (d / "twin.py").read_text(), json.loads((d / "params.json").read_text()), \
+            d.name.split("_", 1)[1]
+    return None, {}, ""
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     run_dir = Path(args.run_dir) if args.run_dir else _latest_run()
     if run_dir is None or not run_dir.exists():
@@ -196,6 +238,12 @@ def build_parser() -> argparse.ArgumentParser:
     dm = sub.add_parser("demo", help="(re)build demo.html for a run from its renders")
     dm.add_argument("run_dir", nargs="?")
     dm.set_defaults(func=cmd_demo)
+
+    pl = sub.add_parser("play", help="build player.html: animate reality vs a spatial twin")
+    pl.add_argument("run_dir", nargs="?")
+    pl.add_argument("--family", help="portfolio family to play (default: #1)")
+    pl.add_argument("--iter", type=int, help="play a specific iteration's twin instead")
+    pl.set_defaults(func=cmd_play)
 
     return p
 

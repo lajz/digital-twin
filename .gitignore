@@ -11,4 +11,6 @@ __pycache__/
 /runs/*
 !/runs/sample/
 /scripts/medusa-demo.html
+/runs/sample/demo.html
+/runs/sample/player.html
 .env
