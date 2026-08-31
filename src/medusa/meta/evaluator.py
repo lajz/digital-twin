@@ -20,7 +20,10 @@ def evaluate_genome(
     dry_run: bool = False,
     nocache: bool = False,
 ) -> GenomeScore:
-    cfg = genome.apply(quick_config(DEFAULT_LOOP_CONFIG, max_iters=meta_cfg.quick_max_iters))
+    cfg = genome.apply(quick_config(
+        DEFAULT_LOOP_CONFIG, max_iters=meta_cfg.quick_max_iters,
+        temperature=meta_cfg.inner_temperature,
+    ))
 
     prev = SHARED.enabled
     if nocache:

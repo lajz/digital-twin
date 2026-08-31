@@ -114,9 +114,22 @@ def _suggestions(status_ct, de_over, no_code, thin, unsolved, per_run) -> str:
     if unsolved:
         tips.append(f"- {', '.join(unsolved)}: no valid twin. The task prompt or a helper "
                     "for that regime is missing.")
-    hard = [pr for pr in per_run if isinstance(pr["best_smape"], (int, float)) and pr["best_smape"] > 0.2]
+    scored = [pr for pr in per_run if isinstance(pr["best_smape"], (int, float))]
+    hard = [pr for pr in scored if pr["best_smape"] > 0.15]
     if hard:
-        tips.append("- Plateaued above sMAPE 0.2: " +
+        tips.append("- Above sMAPE 0.15: " +
                     ", ".join(f"{pr['dataset']} ({pr['best_smape']:.2f})" for pr in hard) +
-                    ". The mechanism these need is probably not being suggested.")
-    return "\n".join(tips) or "- Nothing obviously broken; try a small prompt clarification."
+                    ". The mechanism these need is likely not being proposed -- add it to "
+                    "the relevant system prompt or a helper snippet.")
+    if scored and not tips:
+        worst = max(scored, key=lambda pr: pr["best_smape"])
+        many_fam = [pr for pr in scored if pr["families"] >= pr["n_iters"]]
+        if many_fam:
+            tips.append(f"- {', '.join(pr['dataset'] for pr in many_fam)} used a new family "
+                        "every iteration and never converged -- the loop explores but "
+                        "doesn't refine. Lower `diversity_nudge_every` pressure, or tell the "
+                        "agent to re-tune a promising family before switching.")
+        tips.append(f"- Weakest result: {worst['dataset']} at sMAPE {worst['best_smape']:.3f}. "
+                    "A small clarification in its system prompt about the dominant dynamic "
+                    "(lag / saturation / regime change) is the cheapest lever.")
+    return "\n".join(tips) or "- Nothing obviously broken; a small prompt clarification."

@@ -24,6 +24,7 @@ class GenomeScore:
     mean_valid_rate: float
     n_datasets: int
     bench_dir: str
+    per_dataset: dict = dataclasses.field(default_factory=dict)  # name -> {best, valid, families}
 
     @property
     def feasible(self) -> bool:
@@ -53,6 +54,13 @@ class GenomeScore:
             mean_valid_rate=sum(m.valid_rate for m in per) / len(per),
             n_datasets=len(per),
             bench_dir=str(br.bench_dir),
+            per_dataset={
+                name: {"best": m.best_holdout_smape if m.best_holdout_smape is not None
+                       else _SMAPE_CAP,
+                       "valid": round(m.valid_rate, 2),
+                       "families": m.distinct_plausible_families}
+                for name, m in br.per_dataset.items()
+            },
         )
 
 

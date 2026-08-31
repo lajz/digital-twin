@@ -131,11 +131,15 @@ class LoopConfig:
 DEFAULT_LOOP_CONFIG = LoopConfig.load()  # committed defaults + optional medusa.toml
 
 
-def quick_config(base: LoopConfig | None = None, *, max_iters: int = 8) -> LoopConfig:
-    """A LoopConfig for meta-evaluation: fewer inner iterations, faster stop."""
+def quick_config(
+    base: LoopConfig | None = None, *, max_iters: int = 8, temperature: float | None = None
+) -> LoopConfig:
+    """A LoopConfig for meta-evaluation: fewer inner iterations, faster stop, and a
+    lower inner temperature so the meta-scores aren't swamped by run-to-run variance."""
     base = base or DEFAULT_LOOP_CONFIG
     return dataclasses.replace(
         base, max_iters=min(base.max_iters, max_iters), plateau_patience=2,
+        temperature=base.temperature if temperature is None else temperature,
     )
 
 
@@ -148,6 +152,7 @@ class MetaConfig:
     usd_budget: float = 3.0
     patience: int = 3                # stop after this many generations w/o META_VAL gain
     quick_max_iters: int = 8         # inner iterations per meta-eval run
+    inner_temperature: float = 0.35  # low -> less run-to-run noise in the meta-scores
     train_suite: tuple[str, ...] = ()   # filled from bench.suite.META_TRAIN if empty
     val_suite: tuple[str, ...] = ()
     test_suite: tuple[str, ...] = ()

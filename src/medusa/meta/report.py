@@ -12,36 +12,68 @@ def _s(score) -> str:
             f"${score.mean_usd_cost:.3f}/dataset, valid {score.mean_valid_rate:.0%}")
 
 
-def write_checkpoint(meta_dir: Path, base, seed, seed_val, seed_val_rerun, noise_band,
-                     digest: str, child, child_entry, msg: str) -> Path:
+def _per_table(seed_per: dict, rerun_per: dict) -> str:
+    names = sorted(set(seed_per) | set(rerun_per))
+    rows = ["| dataset | seed best | re-run best | Δ (noise) | valid seed→re-run |",
+            "|---|---|---|---|---|"]
+    for n in names:
+        a, b = seed_per.get(n, {}), rerun_per.get(n, {})
+        sb, rb = a.get("best"), b.get("best")
+        d = (f"{abs(sb - rb):.3f}" if isinstance(sb, (int, float)) and isinstance(rb, (int, float))
+             else "—")
+        rows.append(f"| {n} | {_f(sb)} | {_f(rb)} | {d} | "
+                    f"{_f(a.get('valid'))} → {_f(b.get('valid'))} |")
+    return "\n".join(rows)
+
+
+def _f(x):
+    return f"{x:.3f}" if isinstance(x, (int, float)) else "—"
+
+
+def write_checkpoint(meta_dir: Path, base, seed, seed_val, seed_val_rerun, noise_band, *,
+                     seed_val_per: dict, seed_rerun_per: dict, digest: str,
+                     child, child_entry, reject: str | None) -> Path:
     sv = seed_val.mean_best_smape
     sr = seed_val_rerun.mean_best_smape
-    cv = child_entry.val.mean_best_smape
-    delta = sv - cv                     # positive = child better
-    feasible = child_entry.val.feasible
 
-    if not feasible:
-        verdict = ("**PROPOSAL PATH HAS ISSUES** — the child is infeasible "
-                   f"({child_entry.val.mean_distinct_families:.1f} families, "
-                   f"valid {child_entry.val.mean_valid_rate:.0%}). Fix the constraints / "
-                   "prompt before trusting the search.")
-    elif noise_band > 0.02:
-        verdict = (f"**NOISE-LIMITED** — re-running the seed unchanged moved META_VAL by "
-                   f"{noise_band:.3f}. Any single-generation gain smaller than ~{2*noise_band:.3f} "
-                   "is not real. Widen the suite, average 2+ inner seeds per dataset, or "
-                   "drop the inner temperature before running a long search.")
-    elif delta > 2 * noise_band + 1e-4:
-        verdict = (f"**HILL-CLIMB IS WORKING** — child improves META_VAL by {delta:.3f}, "
-                   f"clear of the {noise_band:.3f} noise band. Safe to run "
-                   "`medusa meta --generations 8`.")
-    elif delta < -2 * noise_band:
-        verdict = ("**ONE STEP DOWN** — child is worse, but that's expected sometimes; the "
-                   "archive keeps the seed. If several generations only go down, revisit the "
-                   "objective or the component menu.")
+    if reject is not None or child_entry is None:
+        cv_line = f"| child | — (rejected: {reject}) | — |"
+        delta = None
+        verdict = (f"**PROPOSAL DIDN'T LAND** — {reject}. The meta-agent's reply couldn't "
+                   "be turned into a valid single-component change. Fix the output-format "
+                   "instructions / parser, then re-run `--generations 1`.")
     else:
-        verdict = (f"**INCONCLUSIVE** — child moved META_VAL by {delta:+.3f}, within the "
-                   f"{noise_band:.3f} noise band. One generation isn't enough signal; run "
-                   "3-5 more and watch the trend, or make the digest sharper.")
+        cv = child_entry.val.mean_best_smape
+        delta = sv - cv
+        cv_line = f"| child (`{child.touched}`) | {cv:.4f} | {delta:+.4f} |"
+        if not child_entry.val.feasible:
+            verdict = (f"**CHILD INFEASIBLE** — {child_entry.val.mean_distinct_families:.1f} "
+                       f"families / valid {child_entry.val.mean_valid_rate:.0%} on VAL. "
+                       "The change hurt robustness; tighten the component menu or the digest.")
+        elif noise_band > 0.02:
+            verdict = (f"**NOISE-LIMITED** — re-running the seed unchanged moved META_VAL by "
+                       f"{noise_band:.3f}; a real single-generation gain must exceed "
+                       f"~{2*noise_band:.3f}. Child moved it {delta:+.3f}. Per-dataset table "
+                       "below shows where the variance lives — pull that dataset out of VAL, "
+                       "lower the inner temperature further, or average 2+ inner seeds.")
+        elif delta > 2 * noise_band + 1e-4:
+            verdict = (f"**HILL-CLIMB IS WORKING** — child improves META_VAL by {delta:.3f}, "
+                       f"clear of the {noise_band:.3f} noise band. Safe to run "
+                       "`medusa meta --generations 8`.")
+        elif delta < -2 * noise_band:
+            verdict = ("**ONE STEP DOWN** — child is worse; the archive keeps the seed. Fine "
+                       "for one step, but if the digest points somewhere useful and the "
+                       "change still hurts, the objective may be off.")
+        else:
+            verdict = (f"**INCONCLUSIVE** — child moved META_VAL {delta:+.3f}, inside the "
+                       f"{noise_band:.3f} noise band. Sharpen the digest or reduce noise; "
+                       "one generation isn't enough signal yet.")
+
+    diff = child.diff_summary(base) if child is not None else "(none)"
+    ratl = child.rationale if child is not None else "—"
+    touched = child.touched if child is not None else "—"
+    child_scores = (f"child train: {_s(child_entry.train)} · child val: {_s(child_entry.val)}"
+                    if child_entry is not None else "")
 
     md = f"""# meta checkpoint — one generation
 
@@ -51,7 +83,11 @@ def write_checkpoint(meta_dir: Path, base, seed, seed_val, seed_val_rerun, noise
 |---|---|---|
 | seed | {sv:.4f} | — |
 | seed re-run (nothing changed) | {sr:.4f} | {sv - sr:+.4f}  ← **noise band {noise_band:.4f}** |
-| child (`{child.touched}`) | {cv:.4f} | {delta:+.4f} |
+{cv_line}
+
+### Where the noise lives (per VAL dataset)
+
+{_per_table(seed_val_per, seed_rerun_per)}
 
 ## Verdict
 
@@ -59,19 +95,18 @@ def write_checkpoint(meta_dir: Path, base, seed, seed_val, seed_val_rerun, noise
 
 ## What the meta-agent changed
 
-- touched: `{child.touched}` — {child.rationale}
+- touched: `{touched}` — {ratl}
 
-{child.diff_summary(base)}
+{diff}
 
-child feasible: {feasible} · child train: {_s(child_entry.train)} · child val: {_s(child_entry.val)}
+{child_scores}
 
 ## The reflection it acted on
 
 {digest}
 
 ---
-Full artefacts under `{meta_dir}/`. Re-run with `medusa meta --generations 8` only once
-the verdict above is green.
+Full artefacts under `{meta_dir}/`.
 """
     p = meta_dir / "meta_checkpoint.md"
     p.write_text(md)

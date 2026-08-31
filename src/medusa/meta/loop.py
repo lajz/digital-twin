@@ -84,6 +84,7 @@ def run_meta_loop(
     seed_val_rerun = _eval(seed, val, "seed_val_rerun", nocache=True)
     archive.add(GenomeEntry(seed, seed_train, seed_val))
     noise_band = abs(seed_val.mean_best_smape - seed_val_rerun.mean_best_smape)
+    seed_val_per, seed_rerun_per = seed_val.per_dataset, seed_val_rerun.per_dataset
     (meta_dir / "seed.json").write_text(json.dumps({
         "train": seed_train.to_dict(), "val": seed_val.to_dict(),
         "val_rerun": seed_val_rerun.to_dict(), "noise_band": noise_band,
@@ -104,6 +105,8 @@ def run_meta_loop(
         )
         user_prompt = mp.META_ITERATION_TEMPLATE.format(
             generation=parent_entry.genome.generation,
+            components_full=mp.components_full(base, parent_entry.genome),
+            knobs_full=mp.knob_menu(base, parent_entry.genome),
             genome_state=mp.genome_state(base, parent_entry.genome),
             train_mean=parent_entry.train.mean_best_smape,
             train_worst=parent_entry.train.worst_best_smape,
@@ -122,38 +125,46 @@ def run_meta_loop(
         (gdir / "agent_msg.md").write_text(completion.text or "(empty)")
         (gdir / "prompt.md").write_text(f"# SYSTEM\n{sys_prompt}\n\n# USER\n{user_prompt}")
 
+        entry: GenomeEntry | None = None
+        reject: str | None = None
+        child = None
         if proposal is None:
-            (gdir / "outcome.json").write_text(json.dumps({"rejected": "no parseable proposal"}))
-            continue
-        child = parent_entry.genome.child(
-            component=proposal.get("component"), knob=proposal.get("knob"),
-            rationale=proposal.get("rationale", ""), generation=gen,
-        )
-        ok, msg = child.validates()
-        if child.touched == "" or child.genome_id == parent_entry.genome.genome_id:
-            ok, msg = False, "proposal changed nothing (unknown component/knob, or a no-op)"
-        if not ok:
-            (gdir / "outcome.json").write_text(json.dumps({"rejected": msg,
-                                                           "proposal": proposal}))
-            continue
+            reject = "no parseable proposal"
+        else:
+            child = parent_entry.genome.child(
+                component=proposal.get("component"), knob=proposal.get("knob"),
+                rationale=proposal.get("rationale", ""), generation=gen,
+            )
+            ok, msg = child.validates()
+            if child.touched == "" or child.genome_id == parent_entry.genome.genome_id:
+                ok, msg = False, "proposal changed nothing (unknown component/knob or a no-op)"
+            if not ok:
+                reject = msg
+            else:
+                ct = _eval(child, train, f"gen_{gen:02d}_train")
+                cv = _eval(child, val, f"gen_{gen:02d}_val")
+                entry = GenomeEntry(child, ct, cv)
+                archive.add(entry)
+                last_child = entry
+                (gdir / "genome.json").write_text(json.dumps(child.to_dict(), indent=2))
+                (gdir / "outcome.json").write_text(json.dumps({
+                    "touched": child.touched, "diff": child.diff_summary(base),
+                    "train": ct.to_dict(), "val": cv.to_dict(),
+                }, indent=2, default=str))
+        if reject is not None:
+            (gdir / "outcome.json").write_text(json.dumps(
+                {"rejected": reject, "response": completion.text[:2000]}))
 
-        ct = _eval(child, train, f"gen_{gen:02d}_train")
-        cv = _eval(child, val, f"gen_{gen:02d}_val")
-        entry = GenomeEntry(child, ct, cv)
-        archive.add(entry)
-        last_child = entry
-        (gdir / "genome.json").write_text(json.dumps(child.to_dict(), indent=2))
-        (gdir / "outcome.json").write_text(json.dumps({
-            "touched": child.touched, "diff": child.diff_summary(base),
-            "train": ct.to_dict(), "val": cv.to_dict(),
-        }, indent=2, default=str))
-
-        if gens == 1:  # the review gate -- stop here, write the checkpoint
+        if gens == 1:  # the review gate -- always write the checkpoint, then stop
             report.write_checkpoint(
                 meta_dir, base, seed, seed_val, seed_val_rerun, noise_band,
-                digest, child, entry, msg="ok",
+                seed_val_per=seed_val_per, seed_rerun_per=seed_rerun_per,
+                digest=digest, child=child, child_entry=entry, reject=reject,
             )
             return MetaResult(meta_dir, archive, checkpoint=True)
+        if entry is None:
+            continue
+        cv = entry.val
 
         if cv.mean_best_smape < best_val - 1e-4:
             best_val, stall = cv.mean_best_smape, 0

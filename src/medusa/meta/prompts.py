@@ -27,23 +27,32 @@ you are given. You may change one **component** (a piece of text the inner loop 
 
 You may NOT change the model, timeouts, runtime budgets, or token limits.
 
-Reply with ONE fenced ```json block and nothing else:
+## Output format -- follow EXACTLY
 
-```json
-{{"touched": "<component-or-knob name>",
-  "rationale": "<2-3 sentences tying this to the reflection>",
-  "component": {{"<name>": "<the COMPLETE new text for that component>"}}}}
+Line 1:  `TOUCHED: <component-or-knob name>`
+Line 2:  `WHY: <2-3 sentences tying this to the reflection>`
+Then, for a **knob**, line 3:  `KNOB: <number or true/false>`
+or, for a **component**, a single fenced code block with the COMPLETE new text of
+that component (any characters allowed inside -- do not escape anything):
+
+```
+<the entire new component text>
 ```
 
-or, for a knob:
-
-```json
-{{"touched": "temperature", "rationale": "...", "knob": {{"temperature": 0.5}}}}
-```
+Nothing else. When you rewrite a component, start from its CURRENT text (shown below in
+full) and make a SMALL, surgical edit -- do not invent a new contract.
 """
 
 META_ITERATION_TEMPLATE = """\
-## Current genome (generation {generation})
+## The components you may edit -- CURRENT TEXT IN FULL
+
+{components_full}
+
+## Knobs (current values)
+
+{knobs_full}
+
+## This genome's overrides so far (generation {generation})
 
 {genome_state}
 
@@ -63,16 +72,31 @@ mean families {train_fam:.1f} | mean cost ${train_cost:.3f} | valid rate {train_
 Propose the next single change.
 """
 
-_JSON_BLOCK = re.compile(r"```json\s*\n(.*?)```", re.DOTALL | re.IGNORECASE)
+_CODE_BLOCK = re.compile(r"```[a-zA-Z0-9_:.-]*\s*\n(.*?)```", re.DOTALL)
+
+# components worth showing the meta-agent for a series-only meta-suite
+MENU_COMPONENTS = (
+    "helper_library", "iteration_template", "diversity_nudge_text",
+    "first_iteration_text", "system_prompt", "system_prompt_saas",
+)
+
+
+def _effective(base: LoopConfig, genome: Genome, name: str) -> str:
+    return genome.components.get(name, getattr(base, name, ""))
 
 
 def component_menu(base: LoopConfig, genome: Genome) -> str:
+    return "\n".join(
+        f"- `{name}` ({len(_effective(base, genome, name))} chars)"
+        for name in MENU_COMPONENTS
+    )
+
+
+def components_full(base: LoopConfig, genome: Genome) -> str:
     out = []
-    for name in COMPONENT_FIELDS:
-        cur = genome.components.get(name, getattr(base, name, ""))
-        preview = textwrap.shorten(cur.replace("\n", " "), width=160, placeholder=" …")
-        out.append(f"- `{name}` ({len(cur)} chars): {preview}")
-    return "\n".join(out)
+    for name in MENU_COMPONENTS:
+        out.append(f"### `{name}`\n```\n{_effective(base, genome, name)}\n```")
+    return "\n\n".join(out)
 
 
 def knob_menu(base: LoopConfig, genome: Genome) -> str:
@@ -96,31 +120,40 @@ def genome_state(base: LoopConfig, genome: Genome, *, full_components: bool = Tr
 
 
 def parse_proposal(text: str) -> dict | None:
-    blocks = _JSON_BLOCK.findall(text or "")
+    """Parse the TOUCHED / WHY / (KNOB | fenced block) format. Robust to any content."""
+    text = text or ""
+    m_touched = re.search(r"TOUCHED:\s*`?([A-Za-z_]+)`?", text)
+    if not m_touched:
+        return None
+    touched = m_touched.group(1)
+    why = ""
+    m_why = re.search(r"WHY:\s*(.+?)(?:\n[A-Z]{3,}:|\n```|\Z)", text, re.DOTALL)
+    if m_why:
+        why = m_why.group(1).strip()
+
+    if touched in KNOB_SPECS:
+        m_knob = re.search(r"KNOB:\s*([-\d.]+|true|false|True|False)", text)
+        if not m_knob:
+            return None
+        raw = m_knob.group(1)
+        val = raw.lower() == "true" if raw.lower() in ("true", "false") else float(raw)
+        return {"touched": touched, "rationale": why, "knob": {touched: val}}
+
+    blocks = _CODE_BLOCK.findall(text)
     if not blocks:
-        blocks = re.findall(r"(\{.*\})", text or "", re.DOTALL)
-    for raw in reversed(blocks):
-        try:
-            d = json.loads(raw)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(d, dict) and ("component" in d or "knob" in d):
-            return d
-    return None
+        return None
+    return {"touched": touched, "rationale": why,
+            "component": {touched: max(blocks, key=len).strip()}}
 
 
 # --- canned meta client (dry-run: no API) --------------------------------------
 
 _CANNED = [
-    {"touched": "temperature", "rationale": "canned: cool it down for consistency",
-     "knob": {"temperature": 0.55}},
-    {"touched": "diversity_nudge_every",
-     "rationale": "canned: push families sooner", "knob": {"diversity_nudge_every": 2}},
-    {"touched": "diversity_nudge_text",
-     "rationale": "canned: make the diversity ask blunter",
-     "component": {"diversity_nudge_text":
-                   "THIS ROUND: a mechanistic family not yet listed. Different state "
-                   "variables or a different closure -- not the same model re-tuned."}},
+    "TOUCHED: diversity_nudge_every\nWHY: canned -- push families sooner\nKNOB: 2",
+    "TOUCHED: temperature\nWHY: canned -- cool it for consistency\nKNOB: 0.45",
+    ("TOUCHED: diversity_nudge_text\nWHY: canned -- blunter diversity ask\n\n```\n"
+     "THIS ROUND: a mechanistic family not yet listed -- different state variables or a "
+     "different closure, not the same model re-tuned.\n```"),
 ]
 
 
@@ -133,8 +166,7 @@ class CannedMetaClient:
     def complete(self, system: str, user: str):  # noqa: ARG002
         from medusa.agent.deepseek import Completion
 
-        payload = _CANNED[self._i % len(_CANNED)]
+        text = _CANNED[self._i % len(_CANNED)]
         self._i += 1
-        text = f"```json\n{json.dumps(payload)}\n```"
         return Completion(text=text, prompt_tokens=len(system) // 4 + len(user) // 4,
                           response_tokens=len(text) // 4, model=self.model)
