@@ -1,9 +1,91 @@
-"""Write the one-generation checkpoint, the final report, and a small meta.html."""
+"""Write the one-generation checkpoint, the final report, and the meta.html dashboard."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
+
+
+# --- meta.html dashboard: read the whole meta_dir tree -------------------------
+
+_STAGE_ORDER = ("seed_train", "seed_val", "seed_val_rerun", "best_test")
+_DOT = {"ok": "good", "no_code_block": "bad", "crashed": "bad"}
+
+
+def _stage_runs(stage_dir: Path) -> list[Path]:
+    return sorted(p.parent for p in stage_dir.glob("*/*/trace.jsonl"))
+
+
+def _run_rows(run: Path) -> list[dict]:
+    return [json.loads(l) for l in (run / "trace.jsonl").read_text().splitlines() if l.strip()]
+
+
+def _iter_strip(rows: list[dict]) -> dict:
+    dots, best, run_best = [], [], None
+    for r in rows:
+        st = str(r.get("status", "?"))
+        kind = "good" if r.get("is_valid") else ("mid" if st.startswith("constraint") else "bad")
+        dots.append({"kind": kind, "status": st[:60], "family": r.get("family"),
+                     "smape": r.get("holdout_smape")})
+        s = r.get("holdout_smape")
+        if r.get("is_valid") and isinstance(s, (int, float)):
+            run_best = s if run_best is None else min(run_best, s)
+        best.append(run_best)
+    return {"dots": dots, "best_curve": best,
+            "final_best": run_best, "n": len(rows),
+            "families": len({d["family"] for d in dots if d["kind"] == "good" and d["family"]})}
+
+
+def _collect(meta_dir: Path) -> dict:
+    meta_dir = Path(meta_dir)
+    cfg = json.loads((meta_dir / "meta_config.json").read_text()) if (meta_dir / "meta_config.json").exists() else {}
+    seed = json.loads((meta_dir / "seed.json").read_text()) if (meta_dir / "seed.json").exists() else {}
+
+    stages = []
+    stage_dirs = [d for d in sorted(meta_dir.iterdir())
+                  if d.is_dir() and (d.name in _STAGE_ORDER or d.name.startswith("gen_"))]
+    for sd in stage_dirs:
+        runs = _stage_runs(sd)
+        if not runs:
+            continue
+        per = {}
+        for run in runs:
+            meta = json.loads((run / "meta.json").read_text()) if (run / "meta.json").exists() else {}
+            per[meta.get("dataset", run.name)] = _iter_strip(_run_rows(run))
+        stages.append({"stage": sd.name, "datasets": per})
+
+    gens = []
+    for gd in sorted(meta_dir.glob("gen_[0-9][0-9]")):
+        out = {}
+        if (gd / "outcome.json").exists():
+            out = json.loads((gd / "outcome.json").read_text())
+        gens.append({
+            "gen": gd.name, "digest": (gd / "digest.md").read_text() if (gd / "digest.md").exists() else "",
+            "rejected": out.get("rejected"), "touched": out.get("touched"),
+            "diff": out.get("diff"),
+            "val_mean": (out.get("val") or {}).get("mean_best_smape"),
+            "train_mean": (out.get("train") or {}).get("mean_best_smape"),
+        })
+
+    return {
+        "meta_dir": meta_dir.name,
+        "noise_band": seed.get("noise_band"),
+        "seed_val": (seed.get("val") or {}).get("mean_best_smape"),
+        "seed_val_rerun": (seed.get("val_rerun") or {}).get("mean_best_smape"),
+        "seed_per": (seed.get("val") or {}).get("per_dataset", {}),
+        "rerun_per": (seed.get("val_rerun") or {}).get("per_dataset", {}),
+        "config": cfg,
+        "stages": stages,
+        "gens": gens,
+    }
+
+
+def build_meta_html(meta_dir: str | Path) -> Path:
+    meta_dir = Path(meta_dir)
+    (meta_dir / "meta.html").write_text(
+        _DASHBOARD.replace("__DATA__", json.dumps(_collect(meta_dir), default=str))
+    )
+    return meta_dir / "meta.html"
 
 
 def _s(score) -> str:
@@ -110,6 +192,10 @@ Full artefacts under `{meta_dir}/`.
 """
     p = meta_dir / "meta_checkpoint.md"
     p.write_text(md)
+    try:
+        build_meta_html(meta_dir)
+    except Exception:  # pragma: no cover - dashboard is best-effort
+        pass
     return p
 
 
@@ -149,66 +235,96 @@ def write_report(meta_dir: Path, base, archive, seed_val, seed_val_rerun, noise_
                      f"train mean {r['train']['mean_best_smape']:.3f}")
     p = meta_dir / "meta_report.md"
     p.write_text("\n".join(lines))
-    _write_html(meta_dir, archive, seed_val, noise_band)
+    build_meta_html(meta_dir)
     return p
 
 
-def _write_html(meta_dir: Path, archive, seed_val, noise_band) -> None:
-    gens = []
-    for e in archive.entries:
-        gens.append({
-            "id": e.genome.genome_id, "gen": e.genome.generation,
-            "touched": e.genome.touched or "seed", "rationale": e.genome.rationale,
-            "train": round(e.train.mean_best_smape, 4),
-            "val": round(e.val.mean_best_smape, 4),
-            "test": round(e.test.mean_best_smape, 4) if e.test else None,
-            "cost": round(e.val.mean_usd_cost, 4),
-            "families": round(e.val.mean_distinct_families, 2),
-            "feasible": e.val.feasible,
-            "front": e in archive.front(),
-        })
-    data = {"noise_band": round(noise_band, 4), "seed_val": round(seed_val.mean_best_smape, 4),
-            "gens": gens}
-    (meta_dir / "meta.html").write_text(_HTML.replace("__DATA__", json.dumps(data)))
-
-
-_HTML = """<title>medusa meta-loop</title>
+_DASHBOARD = r"""<title>medusa meta-loop</title>
 <style>
- :root{--bg:#0f1216;--fg:#e7e9ec;--mut:#8b95a1;--line:#262b31;--good:#4cbd94;--acc:#5fa8d3;--warn:#d69a4a}
- @media(prefers-color-scheme:light){:root{--bg:#f6f7f9;--fg:#161a1d;--mut:#5a636c;--line:#dde1e6}}
- body{background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,sans-serif;margin:0}
- .wrap{max-width:900px;margin:0 auto;padding:32px 20px 64px}
- h1{font-size:20px;margin:0 0 4px} .sub{color:var(--mut);margin-bottom:22px}
+ :root{--bg:#0e1116;--fg:#e7e9ec;--mut:#8b95a1;--line:#242a31;--card:#151a20;
+   --good:#4cbd94;--mid:#d69a4a;--bad:#e0654a;--acc:#5fa8d3}
+ @media(prefers-color-scheme:light){:root{--bg:#f5f7f9;--fg:#141a1d;--mut:#5a636c;
+   --line:#dde1e6;--card:#fff}}
+ *{box-sizing:border-box}
+ body{background:var(--bg);color:var(--fg);font:14px/1.55 system-ui,sans-serif;margin:0}
+ .wrap{max-width:1000px;margin:0 auto;padding:34px 20px 80px}
+ h1{font-size:20px;margin:0 0 3px} h2{font-size:14px;text-transform:uppercase;
+   letter-spacing:.06em;color:var(--mut);margin:34px 0 12px;font-weight:600}
+ .sub{color:var(--mut);margin-bottom:20px;font-variant-numeric:tabular-nums}
+ .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+ .band{margin-bottom:24px} .band b{color:var(--fg)}
  table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
- th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
- th{color:var(--mut);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
- tr.front td{background:color-mix(in srgb,var(--good) 10%,transparent)}
- .id{font-family:ui-monospace,monospace;color:var(--acc)}
- .bad{color:var(--warn)} .dim{color:var(--mut)}
- .band{margin:14px 0 26px;padding:12px 14px;border:1px solid var(--line);border-radius:8px}
+ th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line)}
+ th{color:var(--mut);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+ .mono{font-family:ui-monospace,monospace}
+ .ds{margin:10px 0 18px}
+ .ds h3{margin:0 0 6px;font-size:13px;font-family:ui-monospace,monospace;color:var(--acc)}
+ .strip{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+ .lane{display:flex;flex-direction:column;gap:4px}
+ .lane .lbl{font-size:11px;color:var(--mut)}
+ .dots{display:flex;gap:3px}
+ .dot{width:13px;height:13px;border-radius:3px;cursor:default}
+ .dot.good{background:var(--good)} .dot.mid{background:var(--mid)} .dot.bad{background:var(--bad)}
+ .num{font-family:ui-monospace,monospace;font-size:12px}
+ .digest{white-space:pre-wrap;font:12.5px/1.5 ui-monospace,monospace;color:var(--fg)}
+ .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin:0 4px}
 </style>
 <div class="wrap">
  <h1>medusa meta-loop</h1>
  <div class="sub" id="sub"></div>
- <div class="band" id="band"></div>
- <table><thead><tr><th>gen</th><th>touched</th><th>train</th><th>val</th><th>test</th>
-  <th>families</th><th>$/ds</th><th></th></tr></thead><tbody id="rows"></tbody></table>
- <p class="dim" id="rats" style="margin-top:22px"></p>
+ <div class="card band" id="band"></div>
+
+ <h2>Signal vs noise — seed on META_VAL, run twice unchanged</h2>
+ <table id="noise"><thead><tr><th>dataset</th><th>seed best</th><th>re-run best</th>
+   <th>Δ (noise)</th><th>valid rate</th></tr></thead><tbody></tbody></table>
+
+ <h2>Every inner run — <span class="swatch" style="background:var(--good)"></span>valid
+   <span class="swatch" style="background:var(--mid)"></span>constraint
+   <span class="swatch" style="background:var(--bad)"></span>failed · one square per iteration</h2>
+ <div id="stages"></div>
+
+ <h2>Generations</h2>
+ <div id="gens"></div>
 </div>
 <script>
-const D=__DATA__;
-document.getElementById('sub').textContent=
-  `${D.gens.length} genomes · seed META_VAL ${D.seed_val} · noise band ±${D.noise_band}`;
-document.getElementById('band').innerHTML=
-  `A single-generation META_VAL gain below <b>${(2*D.noise_band).toFixed(4)}</b> `+
-  `(2× the noise band) is not distinguishable from run-to-run variance.`;
-document.getElementById('rows').innerHTML=D.gens.map(g=>{
-  const t=g.test==null?'<span class=dim>—</span>':g.test;
-  return `<tr class="${g.front?'front':''}"><td>${g.gen}</td>`+
-   `<td><span class=id>${g.touched}</span></td><td>${g.train}</td>`+
-   `<td><b>${g.val}</b></td><td>${t}</td><td>${g.families}</td><td>${g.cost}</td>`+
-   `<td>${g.feasible?'':'<span class=bad>infeasible</span>'}</td></tr>`;
-}).join('');
-document.getElementById('rats').innerHTML=D.gens.filter(g=>g.rationale).map(g=>
-  `<b>${g.touched}</b>: ${g.rationale}`).join('<br>');
+const D = __DATA__;
+const f = x => (x==null ? "—" : (+x).toFixed(4));
+
+document.getElementById("sub").textContent =
+  `${D.meta_dir} · seed META_VAL ${f(D.seed_val)} → re-run ${f(D.seed_val_rerun)} `+
+  `· noise band ±${f(D.noise_band)}`;
+document.getElementById("band").innerHTML = D.noise_band==null ? "run in progress…" :
+  `A single-generation META_VAL improvement below <b>${(2*D.noise_band).toFixed(4)}</b> `+
+  `(2× the noise band) can't be told apart from run-to-run variance. The hill-climb `+
+  `only has signal once a child clears that.`;
+
+const names = [...new Set([...Object.keys(D.seed_per), ...Object.keys(D.rerun_per)])].sort();
+document.querySelector("#noise tbody").innerHTML = names.map(n=>{
+  const a=D.seed_per[n]||{}, b=D.rerun_per[n]||{};
+  const d = (a.best!=null&&b.best!=null) ? Math.abs(a.best-b.best).toFixed(3) : "—";
+  const hot = d!=="—" && +d > 0.03 ? ' style="color:var(--bad)"' : '';
+  return `<tr><td class=mono>${n}</td><td class=num>${f(a.best)}</td>`+
+    `<td class=num>${f(b.best)}</td><td class=num${hot}>${d}</td>`+
+    `<td class=num>${f(a.valid)} → ${f(b.valid)}</td></tr>`;
+}).join("");
+
+const dot = d => `<span class="dot ${d.kind}" title="${d.status}${d.family?' · '+d.family:''}${d.smape!=null?' · '+(+d.smape).toFixed(3):''}"></span>`;
+document.getElementById("stages").innerHTML = D.stages.map(s=>{
+  const dsList = Object.entries(s.datasets).map(([name,r])=>
+    `<div class="ds"><h3>${name}</h3><div class="dots">${r.dots.map(dot).join("")}</div>`+
+    `<div class="num" style="color:var(--mut);margin-top:3px">best ${r.final_best==null?"—":(+r.final_best).toFixed(3)} · ${r.families} famil${r.families==1?"y":"ies"} · ${r.n} iters</div></div>`
+  ).join("");
+  return `<div style="margin-bottom:20px"><div class="lbl mono" style="color:var(--mut);margin-bottom:2px">${s.stage}</div>${dsList}</div>`;
+}).join("");
+
+document.getElementById("gens").innerHTML = D.gens.length ? D.gens.map(g=>{
+  const head = g.rejected
+    ? `<b style="color:var(--bad)">${g.gen} — rejected:</b> ${g.rejected}`
+    : `<b>${g.gen}</b> touched <span class=mono style="color:var(--acc)">${g.touched}</span> `+
+      `— train ${f(g.train_mean)} · val ${f(g.val_mean)}`;
+  return `<div class="card" style="margin-bottom:12px">${head}`+
+    (g.diff?`<div class="num" style="color:var(--mut);margin:6px 0">${g.diff.replace(/\n/g,"<br>")}</div>`:"")+
+    `<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--mut)">reflection</summary>`+
+    `<div class="digest">${(g.digest||"").replace(/[<>&]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]))}</div></details></div>`;
+}).join("") : "<div class='card' style='color:var(--mut)'>none yet</div>";
 </script>"""

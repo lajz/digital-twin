@@ -141,13 +141,14 @@ def check_twin_object(
             errors.append(f"Twin.{meth} is not callable")
 
     if params is not None and not errors:
-        if set(params) != set(prm):
-            errors.append(
-                f"fit() returned keys {sorted(params)} but PARAMS wants {sorted(prm)}"
-            )
+        missing = set(prm) - set(params)
+        if missing:
+            errors.append(f"fit() did not return required params: {sorted(missing)}")
         else:
-            for name, value in params.items():
+            # extra keys (e.g. stashed internal state) are ignored; only PARAMS are checked
+            for name in prm:
                 low, high, _ = prm[name]
+                value = params[name]
                 if not isinstance(value, (int, float)):
                     errors.append(f"fitted {name!r} is not a number: {value!r}")
                 elif not (low <= value <= high):

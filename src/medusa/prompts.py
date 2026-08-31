@@ -59,7 +59,9 @@ class Twin:
         # obs.time_s : np.ndarray[float]  seconds since first frame
         # obs.population_count : np.ndarray[float]
         # obs.total_area_um2 : np.ndarray[float] | None
-        # Return a dict with EXACTLY the keys of PARAMS, each within its prior range.
+        # Return a dict containing (at least) every key of PARAMS, each within its prior
+        # range. Stash any internal state as instance attributes (self._x = ...), not in
+        # the returned dict, though extra keys are tolerated.
         ...
 
     def predict(self, params: dict, time_s: np.ndarray) -> np.ndarray:

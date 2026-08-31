@@ -224,17 +224,21 @@ def cmd_meta(args: argparse.Namespace) -> int:
 
 
 def cmd_meta_report(args: argparse.Namespace) -> int:
+    from medusa.meta.report import build_meta_html
+
     meta_dir = Path(args.meta_dir) if args.meta_dir else _latest_meta()
     if meta_dir is None or not meta_dir.exists():
         print("no meta run found")
         return 1
+    html = build_meta_html(meta_dir)  # (re)build the dashboard, works on partial runs
     for name in ("meta_checkpoint.md", "meta_report.md"):
         p = meta_dir / name
         if p.exists():
             print(p.read_text())
+            print(f"\ndashboard: open {html}")
             return 0
-    print(f"{meta_dir} has neither a checkpoint nor a report yet")
-    return 1
+    print(f"{meta_dir}: no checkpoint/report yet\ndashboard: open {html}")
+    return 0
 
 
 def cmd_meta_promote(args: argparse.Namespace) -> int:

@@ -194,7 +194,7 @@ SAAS_CONSTRAINTS = (
                  rel_tol=0.02, abs_tol=25_000.0),
     _customer_flow,
     ratio_within("mrr", "customers", 15.0, 800.0),
-    bounded_step("headcount", 0.4),
+    bounded_step("headcount", 0.55),  # a smoothed hiring model can still step at month 0-1
 )
 
 
