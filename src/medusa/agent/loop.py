@@ -14,8 +14,8 @@ from pathlib import Path
 
 import numpy as np
 
-from medusa import config, prompts
-from medusa.agent.deepseek import get_client
+from medusa import config, critic, prompts
+from medusa.agent.deepseek import get_client, get_critic_client
 from medusa.config import LoopConfig
 from medusa.data.build import Dataset
 from medusa.harness import plots
@@ -134,6 +134,12 @@ def _write_portfolio(run_dir: Path, archive: Archive, sources: dict[int, str], d
     (pdir / "portfolio.md").write_text("\n".join(lines))
 
 
+def _domain_for(dataset: Dataset):
+    from medusa import domains
+
+    return domains.get(dataset.name)
+
+
 class _AsResult:
     """Adapt an ArchiveEntry to the subset of EvalResult that _render_iter reads."""
 
@@ -171,6 +177,11 @@ def run_loop(
     trace = (run_dir / "trace.jsonl").open("w")
 
     client = get_client(cfg, dry_run=dry_run, task_name=dataset.task.name)
+    critic_client = get_critic_client(cfg, dry_run=dry_run) if cfg.critic_enabled else None
+    _dom = _domain_for(dataset)
+    constraint_names = [
+        getattr(c, "__name__", "constraint") for c in (_dom.constraints if _dom else ())
+    ]
     archive = Archive()
     sources: dict[int, str] = {}
     budget = cfg.runtime_budget_for(dataset.task.name)
@@ -181,6 +192,8 @@ def run_loop(
     system_prompt = base_prompt.replace("{twin_runtime_budget_s}", f"{budget:g}")
     fit_table = obs_table(dataset.fit, cfg.context_obs_max_points)
     previous_section = cfg.first_iteration_text
+    critic_note = ""
+    trace_rows: list[dict] = []
     best_seen = float("inf")
     iters_since_improve = 0
 
@@ -198,6 +211,7 @@ def run_loop(
             archive_summary=archive.summary_text(cfg.archive_summary_top_k),
             previous_section=previous_section,
             diversity_nudge=nudge,
+            critic_note=critic_note,  # last iteration's critic output (or "")
         )
 
         completion = client.complete(system_prompt, user_prompt)
@@ -211,18 +225,23 @@ def run_loop(
             msg += f"\n\n---\n## reasoning (finish: {completion.finish_reason})\n\n{completion.reasoning}"
         (idir / "agent_msg.md").write_text(msg)
 
-        base_row = {
+        row: dict = {
             "iter": i,
             "finish_reason": completion.finish_reason,
             "prompt_tokens": completion.prompt_tokens,
             "response_tokens": completion.response_tokens,
+            "critic_prompt_tokens": 0,
+            "critic_response_tokens": 0,
         }
+        # this iteration's note has now been consumed; don't carry it forward
+        critic_note = ""
 
         if source is None:
             (idir / "metrics.json").write_text(json.dumps({"status": "no code block"}, indent=2))
-            trace.write(json.dumps({**base_row, "family": None, "status": "no_code_block",
-                                    "is_valid": False, "holdout_smape": None,
-                                    "wall_s": 0.0}) + "\n")
+            row.update({"family": None, "status": "no_code_block", "is_valid": False,
+                        "holdout_smape": None, "wall_s": 0.0})
+            trace_rows.append(row)
+            trace.write(json.dumps(row, default=str) + "\n")
             trace.flush()
             previous_section = (
                 "Your previous response contained no usable ```python code block. "
@@ -238,8 +257,7 @@ def run_loop(
         (idir / "metrics.json").write_text(json.dumps(res.to_dict(), indent=2, default=str))
         _render_iter(idir, demo_dir, source, res, dataset, i)
 
-        trace.write(json.dumps({
-            **base_row,
+        row.update({
             "family": res.family,
             "mode": res.mode,
             "status": entry.status,
@@ -250,8 +268,7 @@ def run_loop(
             "plausibility": res.metrics.get("plausibility"),
             "implied_doubling_h": res.metrics.get("implied_doubling_h"),
             "wall_s": res.runtime_s,
-        }, default=str) + "\n")
-        trace.flush()
+        })
 
         previous_section = _previous_section(source, res)
 
@@ -261,11 +278,53 @@ def run_loop(
         else:
             iters_since_improve += 1
 
-        if (
+        stop = (
             archive.distinct_valid_families >= cfg.min_families
             and archive.best_score <= cfg.target_smape
             and iters_since_improve >= cfg.plateau_patience
+        )
+
+        # in-run critic: soft NL feedback for the next prompt. Runs even on an
+        # invalid/crashed candidate (the skeptic wants to say why it broke). Its tokens
+        # land in *this* row so loop_scorecard bills them.
+        if (
+            critic_client is not None
+            and cfg.critic_every
+            and i % cfg.critic_every == 0
+            and i < cfg.max_iters
+            and not stop
         ):
+            c_user = critic.render_critic_context(
+                cfg.critic_context_template,
+                iteration=i,
+                datasheet=dataset.datasheet or f"dataset: {dataset.name}",
+                obs_table=fit_table,
+                constraint_names=constraint_names,
+                family=res.family,
+                status=entry.status,
+                holdout_smape=res.metrics.get("holdout_smape"),
+                plausibility=res.metrics.get("plausibility"),
+                per_observable=res.per_observable,
+                archive_summary=archive.summary_text(cfg.archive_summary_top_k),
+                candidate_source=source,
+                recent_trace=(trace_rows + [row])[-cfg.critic_recent_trace_rows:],
+                stance=cfg.critic_stance,
+            )
+            c_comp = critic_client.complete(cfg.critic_prompt, c_user)
+            critic_note = critic.format_note(c_comp.text, cfg.critic_stance)
+            row["critic_prompt_tokens"] = c_comp.prompt_tokens
+            row["critic_response_tokens"] = c_comp.response_tokens
+            (idir / "critic.md").write_text(
+                f"# CRITIC SYSTEM\n\n{cfg.critic_prompt}\n\n"
+                f"# CRITIC USER\n\n{c_user}\n\n"
+                f"# CRITIC NOTE\n\n{critic_note or '(empty reply)'}\n"
+            )
+
+        trace_rows.append(row)
+        trace.write(json.dumps(row, default=str) + "\n")
+        trace.flush()
+
+        if stop:
             break
 
     trace.close()

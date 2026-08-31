@@ -15,6 +15,7 @@ COMPONENT_FIELDS = (
     "iteration_template",
     "diversity_nudge_text",
     "first_iteration_text",
+    "critic_prompt",
     "system_prompt",
     "system_prompt_structured",
     "system_prompt_spatial",
@@ -32,6 +33,8 @@ KNOB_SPECS: dict[str, tuple] = {
     "plateau_patience": (2, 8, "int"),
     "max_iters": (6, 25, "int"),
     "thinking": (0, 1, "bool"),
+    "critic_enabled": (0, 1, "bool"),
+    "critic_every": (1, 4, "int"),   # lo = 1 so cadence can't backdoor-disable the critic
 }
 
 # the iteration template must keep these slots or render_iteration loses the data
@@ -143,6 +146,10 @@ class Genome:
                 if not any(isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
                            for n in tree.body):
                     return False, "a helper_library snippet defines no function"
+
+        cp = self.components.get("critic_prompt")
+        if cp is not None and (not cp.strip() or len(cp) > 6000):
+            return False, "critic_prompt is empty or over the 6000-char bloat guard"
         return True, "ok"
 
     def diff_summary(self, base: LoopConfig) -> str:

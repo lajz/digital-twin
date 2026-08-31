@@ -35,6 +35,8 @@ def reflect(bench_dir: str | Path) -> str:
     status_ct: collections.Counter = collections.Counter()
     constraint_ct: collections.Counter = collections.Counter()
     de_in_over_budget = 0
+    critic_iters = 0
+    critic_tokens = 0
     per_run = []
     families_all: collections.Counter = collections.Counter()
 
@@ -51,6 +53,10 @@ def reflect(bench_dir: str | Path) -> str:
             default=None,
         )
         for k, r in enumerate(rows):
+            if r.get("critic_response_tokens"):
+                critic_iters += 1
+                critic_tokens += (int(r.get("critic_prompt_tokens") or 0)
+                                  + int(r.get("critic_response_tokens") or 0))
             st = str(r.get("status", "?"))
             status_ct[st.split(":")[0]] += 1
             if st.startswith("constraint"):
@@ -77,6 +83,10 @@ def reflect(bench_dir: str | Path) -> str:
     valid = status_ct.get("ok", 0)
     lines.append(f"Valid rate: {valid}/{total_iters} ({valid/max(total_iters,1):.0%}). "
                  f"Status mix: " + ", ".join(f"{k} {v}" for k, v in status_ct.most_common()))
+    if critic_tokens:
+        lines.append(f"In-run critic active on {critic_iters}/{total_iters} iterations "
+                     f"(+{critic_tokens} tokens). Check whether best sMAPE / families "
+                     f"justify the spend.")
     if over_budget:
         note = f" -- {de_in_over_budget} of them still call differential_evolution" if de_in_over_budget else ""
         lines.append(f"Over the runtime budget: {over_budget} candidates "
@@ -95,12 +105,12 @@ def reflect(bench_dir: str | Path) -> str:
         lines.append(f"No valid twin at all on: {', '.join(unsolved)}.")
 
     lines += ["", "### Where to push next", _suggestions(
-        status_ct, de_in_over_budget, no_code, thin, unsolved, per_run
+        status_ct, de_in_over_budget, no_code, thin, unsolved, per_run, critic_iters
     )]
     return "\n".join(lines)
 
 
-def _suggestions(status_ct, de_over, no_code, thin, unsolved, per_run) -> str:
+def _suggestions(status_ct, de_over, no_code, thin, unsolved, per_run, critic_iters=0) -> str:
     tips = []
     if de_over:
         tips.append("- The prompt says don't use `differential_evolution` in `fit`, but "
@@ -121,6 +131,13 @@ def _suggestions(status_ct, de_over, no_code, thin, unsolved, per_run) -> str:
                     ", ".join(f"{pr['dataset']} ({pr['best_smape']:.2f})" for pr in hard) +
                     ". The mechanism these need is likely not being proposed -- add it to "
                     "the relevant system prompt or a helper snippet.")
+    if critic_iters and (thin or hard):
+        tips.append("- The in-run critic is active but datasets still plateau or stay on "
+                    "one family. Sharpen `critic_prompt`, or raise `critic_every` if the "
+                    "spend isn't paying off.")
+    elif critic_iters and not thin and not unsolved and not hard:
+        tips.append("- The in-run critic is active and every dataset looks healthy. Try "
+                    "`critic_enabled=0` to check the gain survives removing its cost.")
     if scored and not tips:
         worst = max(scored, key=lambda pr: pr["best_smape"])
         many_fam = [pr for pr in scored if pr["families"] >= pr["n_iters"]]

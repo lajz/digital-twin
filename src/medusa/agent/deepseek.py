@@ -44,7 +44,8 @@ class DryRunClient:
 
 class DeepSeekClient:
     def __init__(
-        self, cfg: LoopConfig, *, max_retries: int = 4, cache: ResponseCache | None = SHARED
+        self, cfg: LoopConfig, *, max_retries: int = 4, cache: ResponseCache | None = SHARED,
+        sig_extra: str = "",
     ) -> None:
         from openai import OpenAI
 
@@ -59,10 +60,12 @@ class DeepSeekClient:
         self._cfg = cfg
         self._max_retries = max_retries
         self._cache = cache
+        self._sig_extra = sig_extra
         self.model = cfg.model
 
     def _sig(self) -> str:
-        return f"{self._cfg.model}|t={self._cfg.temperature:g}|think={int(self._cfg.thinking)}"
+        base = f"{self._cfg.model}|t={self._cfg.temperature:g}|think={int(self._cfg.thinking)}"
+        return base if not self._sig_extra else f"{base}|{self._sig_extra}"
 
     def complete(self, system: str, user: str) -> Completion:
         if self._cache is not None:
@@ -119,3 +122,25 @@ def get_client(
     cache: ResponseCache | None = SHARED,
 ):
     return DryRunClient(task_name=task_name) if dry_run else DeepSeekClient(cfg, cache=cache)
+
+
+def get_critic_client(cfg: LoopConfig, *, dry_run: bool, cache: ResponseCache | None = SHARED):
+    """The in-run critic's client: a derived config (cheap model, low temperature, hard
+    token cap, no thinking) + a cache signature that covers the stance and a hash of the
+    evolvable critic prompt, so a genome that rewrites it gets fresh critic calls while
+    the main-agent cache is untouched. Empty `sig_extra` never fires here."""
+    if dry_run:
+        from medusa.critic import CannedCritic
+
+        return CannedCritic()
+
+    import hashlib
+
+    ccfg = cfg.replace(
+        model=cfg.critic_model or cfg.model,
+        temperature=cfg.critic_temperature,
+        max_response_tokens=cfg.critic_max_tokens,
+        thinking=False,
+    )
+    digest = hashlib.sha256(cfg.critic_prompt.encode()).hexdigest()[:12]
+    return DeepSeekClient(ccfg, cache=cache, sig_extra=f"critic|{cfg.critic_stance}|{digest}")
