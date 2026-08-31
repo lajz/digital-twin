@@ -1,0 +1,14 @@
+{
+  "dataset": "saas-seed",
+  "n_iters": 11,
+  "best_holdout_smape": 0.07628114109190998,
+  "iters_to_target": 7,
+  "distinct_plausible_families": 4,
+  "valid_rate": 0.8181818181818182,
+  "candidate_crash_rate": 0.0,
+  "improvement_auc": 0.8124187799273547,
+  "total_prompt_tokens": 61001,
+  "total_response_tokens": 32752,
+  "usd_cost": 0.03083612,
+  "wall_s_total": 31.704215086065233
+}

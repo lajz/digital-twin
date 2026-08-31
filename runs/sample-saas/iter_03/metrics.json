@@ -1,0 +1,43 @@
+{
+  "family": "cohort-retention",
+  "params": {
+    "market": 39719.64002430546,
+    "acq_per_dollar": 0.010914595350043327,
+    "retention_alpha": 0.9772368396441808,
+    "retention_beta": 0.0011692379954406358,
+    "arpa0": 92.21286830620988,
+    "arpa_growth": 0.0002866291920962633,
+    "rev_per_head": 146220.08127592754,
+    "opex_per_head": 9837.744333468909,
+    "fixed_opex": 55184.87573069923,
+    "price_break": 1.080154375158227,
+    "headcount_smooth": 0.1639397547306966
+  },
+  "n_params": 11,
+  "mode": "series",
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 0.5876773749478161,
+  "metrics": {
+    "holdout_smape": 0.157750020098089,
+    "holdout_smape_population": NaN,
+    "fit_r2": NaN,
+    "implied_doubling_h": NaN,
+    "plausibility": 1.0
+  },
+  "per_observable": {
+    "mrr": 0.1711130367480397,
+    "customers": 0.021651898910590963,
+    "net_income": 0.4947238297670823,
+    "cash": 0.15163213732614328,
+    "headcount": 0.02678680235163241,
+    "new_customers": 0.045073250850732424
+  },
+  "constraint_violation": null,
+  "is_valid": true,
+  "score": 0.157750020098089
+}

@@ -1,0 +1,42 @@
+{
+  "family": "bass-diffusion-churn",
+  "params": {
+    "market": 43812.59123646817,
+    "acq_per_dollar": 0.010177062688973941,
+    "monthly_churn": 0.02175052840331597,
+    "arpa0": 80.59869628336642,
+    "arpa_growth": 0.007811982875428074,
+    "rev_per_head": 125256.15753619824,
+    "opex_per_head": 10599.756712198667,
+    "fixed_opex": 32810.51059788903,
+    "price_break": 0.9617157968270191,
+    "headcount_smooth": 0.10855178145634134
+  },
+  "n_params": 10,
+  "mode": "series",
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 0.26371512515470386,
+  "metrics": {
+    "holdout_smape": 0.2472425928679327,
+    "holdout_smape_population": NaN,
+    "fit_r2": NaN,
+    "implied_doubling_h": NaN,
+    "plausibility": 1.0
+  },
+  "per_observable": {
+    "mrr": 0.10547090945328623,
+    "customers": 0.03781379117044932,
+    "net_income": 1.0219994771154262,
+    "cash": 0.24248512717681336,
+    "headcount": 0.12488833812610926,
+    "new_customers": 0.04957981136109228
+  },
+  "constraint_violation": null,
+  "is_valid": true,
+  "score": 0.2472425928679327
+}

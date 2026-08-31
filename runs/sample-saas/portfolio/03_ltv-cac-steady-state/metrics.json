@@ -1,0 +1,7 @@
+{
+  "holdout_smape": 0.24118503275135253,
+  "holdout_smape_population": NaN,
+  "fit_r2": NaN,
+  "implied_doubling_h": NaN,
+  "plausibility": 1.0
+}

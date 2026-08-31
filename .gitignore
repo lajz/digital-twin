@@ -10,7 +10,9 @@ __pycache__/
 /data/
 /runs/*
 !/runs/sample/
+!/runs/sample-saas/
 /scripts/medusa-demo.html
 /runs/sample/demo.html
 /runs/sample/player.html
+/runs/sample-saas/demo.html
 .env

@@ -1,0 +1,98 @@
+{
+  "dataset": "saas-seed",
+  "task": {
+    "name": "saas",
+    "observables": [
+      "mrr",
+      "customers",
+      "net_income",
+      "cash",
+      "headcount",
+      "new_customers"
+    ],
+    "weights": {
+      "mrr": 1.5,
+      "cash": 1.2,
+      "customers": 1.0,
+      "net_income": 0.8,
+      "headcount": 0.6,
+      "new_customers": 0.6
+    },
+    "plausibility": {
+      "monthly_churn": [
+        0.004,
+        0.15
+      ],
+      "arpa_usd": [
+        20.0,
+        600.0
+      ]
+    },
+    "mode": "series",
+    "exogenous": [
+      "marketing_spend",
+      "capital_raised"
+    ],
+    "period_s": 2592000.0,
+    "period_label": "mo"
+  },
+  "started": "20260830-230111",
+  "dry_run": false,
+  "split": {
+    "fit_frac": 0.6,
+    "t_split_s": 73094400.0,
+    "n_fit": 29,
+    "n_holdout": 19,
+    "t_start_s": 0.0,
+    "t_end_s": 121824000.0,
+    "dataset": "saas-seed",
+    "ground_truth": {
+      "monthly_churn": 0.025,
+      "churn_plausible": [
+        0.004,
+        0.15
+      ],
+      "arpa_usd_plausible": [
+        20.0,
+        600.0
+      ],
+      "market": 40000.0
+    },
+    "task": {
+      "name": "saas",
+      "observables": [
+        "mrr",
+        "customers",
+        "net_income",
+        "cash",
+        "headcount",
+        "new_customers"
+      ],
+      "weights": {
+        "mrr": 1.5,
+        "cash": 1.2,
+        "customers": 1.0,
+        "net_income": 0.8,
+        "headcount": 0.6,
+        "new_customers": 0.6
+      },
+      "plausibility": {
+        "monthly_churn": [
+          0.004,
+          0.15
+        ],
+        "arpa_usd": [
+          20.0,
+          600.0
+        ]
+      },
+      "mode": "series",
+      "exogenous": [
+        "marketing_spend",
+        "capital_raised"
+      ],
+      "period_s": 2592000.0,
+      "period_label": "mo"
+    }
+  }
+}
