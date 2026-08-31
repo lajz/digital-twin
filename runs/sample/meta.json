@@ -1,0 +1,73 @@
+{
+  "dataset": "ipb-ecoli-spatial",
+  "task": {
+    "name": "spatial",
+    "observables": [
+      "total_length_um",
+      "population_count",
+      "colony_radius_um",
+      "colony_aspect",
+      "nematic_order",
+      "mean_nn_dist_um"
+    ],
+    "weights": {
+      "colony_aspect": 0.5,
+      "nematic_order": 0.5
+    },
+    "plausibility": {
+      "doubling_time_h": [
+        0.15,
+        6.0
+      ],
+      "mean_length_um": [
+        1.0,
+        12.0
+      ]
+    },
+    "mode": "spatial"
+  },
+  "started": "20260830-131332",
+  "dry_run": false,
+  "split": {
+    "fit_frac": 0.6,
+    "t_split_s": 5346.0,
+    "n_fit": 60,
+    "n_holdout": 40,
+    "t_start_s": 0.0,
+    "t_end_s": 8910.0,
+    "dataset": "ipb-ecoli-spatial",
+    "ground_truth": {
+      "td_plausible_h": [
+        0.33,
+        1.5
+      ],
+      "px_um": 0.11993578521775276
+    },
+    "task": {
+      "name": "spatial",
+      "observables": [
+        "total_length_um",
+        "population_count",
+        "colony_radius_um",
+        "colony_aspect",
+        "nematic_order",
+        "mean_nn_dist_um"
+      ],
+      "weights": {
+        "colony_aspect": 0.5,
+        "nematic_order": 0.5
+      },
+      "plausibility": {
+        "doubling_time_h": [
+          0.15,
+          6.0
+        ],
+        "mean_length_um": [
+          1.0,
+          12.0
+        ]
+      },
+      "mode": "spatial"
+    }
+  }
+}

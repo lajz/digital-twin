@@ -1,0 +1,36 @@
+{
+  "family": "overdamped-rods",
+  "params": {
+    "elong_rate": 0.8270147535567426,
+    "div_length": 5.160129703719579,
+    "div_cv": 0.1807990088484257,
+    "stiffness": 7.806281738206082
+  },
+  "n_params": 4,
+  "mode": "spatial",
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 10.77532924991101,
+  "metrics": {
+    "holdout_smape": 0.5111089875289058,
+    "holdout_smape_population": 0.1151693847039104,
+    "fit_r2": 0.5180431823253093,
+    "implied_doubling_h": 0.8381315781597654,
+    "plausibility": 1.0,
+    "n_cells_final": 876.0
+  },
+  "per_observable": {
+    "total_length_um": 0.2253426268399104,
+    "population_count": 0.1151693847039104,
+    "colony_radius_um": 0.7234136097820303,
+    "colony_aspect": 0.3982020748487603,
+    "nematic_order": 0.47948744969172763,
+    "mean_nn_dist_um": 1.0527745540484337
+  },
+  "is_valid": true,
+  "score": 0.5111089875289058
+}
