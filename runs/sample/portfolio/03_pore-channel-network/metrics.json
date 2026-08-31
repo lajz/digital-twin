@@ -1,0 +1,8 @@
+{
+  "holdout_smape": 0.27869478502278816,
+  "holdout_smape_population": 0.18407328680343465,
+  "fit_r2": 0.7888703774921917,
+  "implied_doubling_h": 0.9054695196722651,
+  "plausibility": 1.0,
+  "n_cells_final": 743.0
+}

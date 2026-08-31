@@ -114,8 +114,13 @@ packages for time-lapse image processing of monolayer bacterial population dynam
 [github.com/ingallslab/ImageProcessing-Benchmarking](https://github.com/ingallslab/ImageProcessing-Benchmarking),
 CC-BY 4.0). It's one automated pipeline's count, not a manual ground truth, and the
 crop starts mid-growth (no lag/saturation phase) — so it's a growth-rate problem.
-See `runs/sample/` for a real run: best held-out sMAPE **0.018**, implied doubling
-time 30 min.
+
+Real-run results:
+- **L0** `ipb-ecoli` — best held-out sMAPE 0.018, implied doubling time 30 min
+- **L2** `ipb-ecoli-spatial` — best combined held-out sMAPE **0.143**
+  (`stochastic-rod-population`), 6 model families, matching count / radius of gyration /
+  packing on held-out frames; `runs/sample/` is this run (`medusa demo runs/sample` for
+  the side-by-side viewer).
 
 Other shortlisted datasets (`uv run medusa fetch` with no args prints how to get them):
 DeLTA 2.0 agar-pad microcolony, Cell Tracking Challenge bacterial 2D sets, Tanouchi

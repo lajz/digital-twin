@@ -111,6 +111,18 @@ def cmd_bench(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_demo(args: argparse.Namespace) -> int:
+    from medusa.demo import build_demo
+
+    run_dir = Path(args.run_dir) if args.run_dir else _latest_run()
+    if run_dir is None or not run_dir.exists():
+        print("no run found")
+        return 1
+    out = build_demo(run_dir)
+    print(f"wrote {out}" if out else "no renders to build a demo from")
+    return 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     run_dir = Path(args.run_dir) if args.run_dir else _latest_run()
     if run_dir is None or not run_dir.exists():
@@ -180,6 +192,10 @@ def build_parser() -> argparse.ArgumentParser:
     rp = sub.add_parser("report", help="print a run's scorecard + portfolio")
     rp.add_argument("run_dir", nargs="?")
     rp.set_defaults(func=cmd_report)
+
+    dm = sub.add_parser("demo", help="(re)build demo.html for a run from its renders")
+    dm.add_argument("run_dir", nargs="?")
+    dm.set_defaults(func=cmd_demo)
 
     return p
 

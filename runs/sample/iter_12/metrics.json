@@ -1,0 +1,36 @@
+{
+  "family": "pore-channel-network",
+  "params": {
+    "elong_rate": 0.7655113347280801,
+    "div_length": 5.160129703719579,
+    "div_cv": 0.1807990088484257,
+    "channel_k": 0.12251269528243292
+  },
+  "n_params": 4,
+  "mode": "spatial",
+  "passed_checks": true,
+  "crashed": false,
+  "nondeterministic": false,
+  "over_budget": false,
+  "error": null,
+  "checker_report": "OK",
+  "runtime_s": 0.07452095905318856,
+  "metrics": {
+    "holdout_smape": 0.27869478502278816,
+    "holdout_smape_population": 0.18407328680343465,
+    "fit_r2": 0.7888703774921917,
+    "implied_doubling_h": 0.9054695196722651,
+    "plausibility": 1.0,
+    "n_cells_final": 743.0
+  },
+  "per_observable": {
+    "total_length_um": 0.34435703069046053,
+    "population_count": 0.18407328680343465,
+    "colony_radius_um": 0.055923028953529005,
+    "colony_aspect": 0.17498505514380053,
+    "nematic_order": 0.19192605391322917,
+    "mean_nn_dist_um": 0.6256650241380017
+  },
+  "is_valid": true,
+  "score": 0.27869478502278816
+}
