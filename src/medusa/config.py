@@ -12,7 +12,7 @@ import json
 import os
 from pathlib import Path
 
-from medusa import prompts
+from medusa import prompts, toolkit
 
 # --- paths -------------------------------------------------------------------
 
@@ -76,9 +76,13 @@ class LoopConfig:
     system_prompt: str = prompts.SYSTEM_PROMPT
     system_prompt_structured: str = prompts.STRUCTURED_SYSTEM_PROMPT
     system_prompt_spatial: str = prompts.SPATIAL_SYSTEM_PROMPT
+    system_prompt_saas: str = prompts.SAAS_SYSTEM_PROMPT
     # set to override the domain's own system prompt (the meta-loop's hook)
     system_prompt_override: str | None = None
     iteration_template: str = prompts.ITERATION_TEMPLATE
+    diversity_nudge_text: str = prompts.DIVERSITY_NUDGE
+    first_iteration_text: str = prompts.FIRST_ITERATION_PREVIOUS
+    helper_library: str = dataclasses.field(default_factory=toolkit.render_library)
     diversity_nudge_every: int = 3  # every Nth iter, push for an unexplored family
     context_obs_max_points: int = 60  # downsample fit-window table to <= this many rows
     archive_summary_top_k: int = 6  # families to describe back to the agent
@@ -94,6 +98,7 @@ class LoopConfig:
         return {
             "structured": self.system_prompt_structured,
             "spatial": self.system_prompt_spatial,
+            "saas": self.system_prompt_saas,
         }.get(task_name, self.system_prompt)
 
     def runtime_budget_for(self, task_name: str) -> float:
@@ -107,5 +112,46 @@ class LoopConfig:
         fields = {f.name for f in dataclasses.fields(cls)}
         return cls(**{k: v for k, v in d.items() if k in fields})
 
+    def replace(self, **overrides) -> "LoopConfig":
+        return dataclasses.replace(self, **overrides)
 
-DEFAULT_LOOP_CONFIG = LoopConfig()
+    @classmethod
+    def load(cls, toml_path: Path | None = None) -> "LoopConfig":
+        """Defaults merged with an optional `medusa.toml` [loop] table (promoted genome)."""
+        import tomllib
+
+        toml_path = toml_path or (REPO_ROOT / "medusa.toml")
+        base = cls()
+        if not toml_path.exists():
+            return base
+        table = tomllib.loads(toml_path.read_text()).get("loop", {})
+        return base.from_dict({**dataclasses.asdict(base), **table})
+
+
+DEFAULT_LOOP_CONFIG = LoopConfig.load()  # committed defaults + optional medusa.toml
+
+
+def quick_config(base: LoopConfig | None = None, *, max_iters: int = 8) -> LoopConfig:
+    """A LoopConfig for meta-evaluation: fewer inner iterations, faster stop."""
+    base = base or DEFAULT_LOOP_CONFIG
+    return dataclasses.replace(
+        base, max_iters=min(base.max_iters, max_iters), plateau_patience=2,
+    )
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class MetaConfig:
+    """Knobs for the meta-loop (`medusa/meta/`)."""
+
+    model: str = "deepseek-v4-flash"
+    generations: int = 10
+    usd_budget: float = 3.0
+    patience: int = 3                # stop after this many generations w/o META_VAL gain
+    quick_max_iters: int = 8         # inner iterations per meta-eval run
+    train_suite: tuple[str, ...] = ()   # filled from bench.suite.META_TRAIN if empty
+    val_suite: tuple[str, ...] = ()
+    test_suite: tuple[str, ...] = ()
+    temperature: float = 0.8
+
+
+DEFAULT_META_CONFIG = MetaConfig()

@@ -197,6 +197,85 @@ def _latest_run() -> Path | None:
     return max(runs, key=lambda p: p.stat().st_mtime) if runs else None
 
 
+def _latest_meta() -> Path | None:
+    if not config.RUNS_DIR.exists():
+        return None
+    ms = [p for p in config.RUNS_DIR.glob("meta-*") if p.is_dir()]
+    return max(ms, key=lambda p: p.stat().st_mtime) if ms else None
+
+
+def cmd_meta(args: argparse.Namespace) -> int:
+    from medusa.config import MetaConfig
+    from medusa.meta.loop import run_meta_loop
+
+    mc = MetaConfig(
+        generations=args.generations,
+        usd_budget=args.budget if args.budget is not None else MetaConfig().usd_budget,
+    )
+    print(f"meta-loop: generations={args.generations}, dry_run={args.dry_run}, "
+          f"budget=${mc.usd_budget}")
+    res = run_meta_loop(mc, generations=args.generations, dry_run=args.dry_run)
+    print(f"\nmeta dir: {res.meta_dir}")
+    if res.checkpoint:
+        print("\n" + (res.meta_dir / "meta_checkpoint.md").read_text())
+    else:
+        print("\n" + (res.meta_dir / "meta_report.md").read_text())
+    return 0
+
+
+def cmd_meta_report(args: argparse.Namespace) -> int:
+    meta_dir = Path(args.meta_dir) if args.meta_dir else _latest_meta()
+    if meta_dir is None or not meta_dir.exists():
+        print("no meta run found")
+        return 1
+    for name in ("meta_checkpoint.md", "meta_report.md"):
+        p = meta_dir / name
+        if p.exists():
+            print(p.read_text())
+            return 0
+    print(f"{meta_dir} has neither a checkpoint nor a report yet")
+    return 1
+
+
+def cmd_meta_promote(args: argparse.Namespace) -> int:
+    import tomllib
+
+    from medusa.meta.genome import Genome
+
+    genome = Genome.from_dict(json.loads(Path(args.genome).read_text()))
+    ok, msg = genome.validates()
+    if not ok:
+        print(f"refusing to promote: {msg}")
+        return 1
+    table = {**genome.components, **genome._clamped_knobs()}
+    toml_path = config.REPO_ROOT / "medusa.toml"
+    existing = tomllib.loads(toml_path.read_text()).get("loop", {}) if toml_path.exists() else {}
+
+    print("This will write [loop] overrides to medusa.toml:")
+    for k, v in table.items():
+        old = existing.get(k, "<default>")
+        shown = v if not isinstance(v, str) else f"<{len(v)} chars>"
+        print(f"  {k}: {old if not isinstance(old, str) else f'<{len(old)} chars>'} -> {shown}")
+    if not args.yes:
+        print("\nre-run with --yes to apply")
+        return 0
+
+    lines = ["# written by `medusa meta-promote`", "[loop]"]
+    for k, v in table.items():
+        lines.append(f"{k} = {_toml_value(v)}")
+    toml_path.write_text("\n".join(lines) + "\n")
+    print(f"wrote {toml_path}")
+    return 0
+
+
+def _toml_value(v) -> str:
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return repr(v)
+    return json.dumps(v)  # a JSON string is a valid TOML basic string (newlines -> \n)
+
+
 # --- parser ------------------------------------------------------------------
 
 
@@ -257,6 +336,23 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--family", help="portfolio family to play (default: #1)")
     pl.add_argument("--iter", type=int, help="play a specific iteration's twin instead")
     pl.set_defaults(func=cmd_play)
+
+    mt = sub.add_parser("meta", help="hill-climb the loop's config + tooling (meta-loop)")
+    mt.add_argument("--generations", type=int, default=1,
+                    help="1 (default) = one generation then a checkpoint; run longer only "
+                         "after the checkpoint verdict is green")
+    mt.add_argument("--dry-run", action="store_true", help="canned inner + meta agents, no API")
+    mt.add_argument("--budget", type=float, help="USD cap (default 3.0)")
+    mt.set_defaults(func=cmd_meta)
+
+    mr = sub.add_parser("meta-report", help="print the latest (or given) meta run's report")
+    mr.add_argument("meta_dir", nargs="?")
+    mr.set_defaults(func=cmd_meta_report)
+
+    mpr = sub.add_parser("meta-promote", help="write a genome's overrides to medusa.toml")
+    mpr.add_argument("genome", help="path to a genome_*.json")
+    mpr.add_argument("--yes", action="store_true", help="apply (otherwise just show the diff)")
+    mpr.set_defaults(func=cmd_meta_promote)
 
     return p
 

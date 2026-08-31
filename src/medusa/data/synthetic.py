@@ -69,6 +69,31 @@ PRESETS: dict[str, SyntheticPreset] = {
         noise_cv=0.09,
         seed=3,
     ),
+    # --- extra presets spanning failure modes, for the meta-suite ---
+    "synthetic-lag-heavy": SyntheticPreset(
+        name="synthetic-lag-heavy",
+        organism="slow-adapting isolate (synthetic)",
+        n0=3.0,
+        mu_max_per_h=1.4,
+        carrying_capacity=6.0e4,
+        lag_h=4.5,  # long lag: a plain exponential/logistic will misfit the onset
+        duration_h=18.0,
+        frame_interval_s=300.0,
+        noise_cv=0.10,
+        seed=4,
+    ),
+    "synthetic-noisy-sparse": SyntheticPreset(
+        name="synthetic-noisy-sparse",
+        organism="low-density count (synthetic)",
+        n0=1.0,
+        mu_max_per_h=0.9,
+        carrying_capacity=900.0,  # small counts -> Poisson noise dominates
+        lag_h=1.5,
+        duration_h=20.0,
+        frame_interval_s=1800.0,  # only ~40 sparse points
+        noise_cv=0.16,
+        seed=5,
+    ),
 }
 
 

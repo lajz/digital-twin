@@ -8,6 +8,7 @@ import time
 
 from medusa import config
 from medusa.agent import canned
+from medusa.agent.cache import SHARED, ResponseCache
 from medusa.config import LoopConfig
 
 
@@ -42,7 +43,9 @@ class DryRunClient:
 
 
 class DeepSeekClient:
-    def __init__(self, cfg: LoopConfig, *, max_retries: int = 4) -> None:
+    def __init__(
+        self, cfg: LoopConfig, *, max_retries: int = 4, cache: ResponseCache | None = SHARED
+    ) -> None:
         from openai import OpenAI
 
         config.load_dotenv()
@@ -55,9 +58,23 @@ class DeepSeekClient:
         self._client = OpenAI(api_key=api_key, base_url=config.DEEPSEEK_BASE_URL)
         self._cfg = cfg
         self._max_retries = max_retries
+        self._cache = cache
         self.model = cfg.model
 
+    def _sig(self) -> str:
+        return f"{self._cfg.model}|t={self._cfg.temperature:g}|think={int(self._cfg.thinking)}"
+
     def complete(self, system: str, user: str) -> Completion:
+        if self._cache is not None:
+            hit = self._cache.get(self._sig(), system, user)
+            if hit is not None:
+                return Completion(**hit)
+        completion = self._complete_uncached(system, user)
+        if self._cache is not None:
+            self._cache.put(self._sig(), system, user, completion)
+        return completion
+
+    def _complete_uncached(self, system: str, user: str) -> Completion:
         # DeepSeek V4: thinking is a request-level toggle, not a model name. It must be
         # sent explicitly -- v4-flash reasons by default and can burn the whole token
         # budget before emitting any content.
@@ -97,5 +114,8 @@ class DeepSeekClient:
         raise RuntimeError(f"DeepSeek API failed after {self._max_retries} attempts: {last_exc}")
 
 
-def get_client(cfg: LoopConfig, *, dry_run: bool, task_name: str = "population"):
-    return DryRunClient(task_name=task_name) if dry_run else DeepSeekClient(cfg)
+def get_client(
+    cfg: LoopConfig, *, dry_run: bool, task_name: str = "population",
+    cache: ResponseCache | None = SHARED,
+):
+    return DryRunClient(task_name=task_name) if dry_run else DeepSeekClient(cfg, cache=cache)

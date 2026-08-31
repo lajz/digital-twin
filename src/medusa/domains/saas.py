@@ -60,6 +60,13 @@ PRESETS = {
         rev_per_head=180000.0, opex_per_head=11000.0, fixed_opex=25000.0,
         hc_alpha=0.25, cash0=800000.0, customers0=400.0, seed=1,
     ),
+    # high churn + a small market: growth stalls near saturation, no price step
+    "saas-plateau": SaaSPreset(
+        name="saas-plateau", months=42, market=9000.0, k_acq=0.014, churn=0.055,
+        arpa0=140.0, arpa_growth=0.001, price_step_month=999, price_step_mult=1.0,
+        rev_per_head=160000.0, opex_per_head=12000.0, fixed_opex=40000.0,
+        hc_alpha=0.3, cash0=1_200_000.0, customers0=600.0, seed=2,
+    ),
 }
 
 

@@ -279,6 +279,10 @@ ITERATION_TEMPLATE = """\
 
 {obs_table}
 
+## Reusable helpers
+
+{helper_library}
+
 ## Model families tried so far
 
 {archive_summary}
@@ -310,12 +314,19 @@ def render_iteration(
     obs_table: str,
     archive_summary: str,
     previous_section: str,
+    helper_library: str = "",
     diversity_nudge: str = "",
 ) -> str:
-    return template.format(
-        datasheet=datasheet.strip(),
-        obs_table=obs_table.strip(),
-        archive_summary=archive_summary.strip(),
-        previous_section=previous_section.strip(),
-        diversity_nudge=diversity_nudge.strip(),
-    )
+    fields = {
+        "datasheet": datasheet.strip(),
+        "obs_table": obs_table.strip(),
+        "helper_library": helper_library.strip() or "(none)",
+        "archive_summary": archive_summary.strip(),
+        "previous_section": previous_section.strip(),
+        "diversity_nudge": diversity_nudge.strip(),
+    }
+    # tolerate templates (e.g. an evolved one) that omit some slots
+    import string
+
+    present = {name for _, name, _, _ in string.Formatter().parse(template) if name}
+    return template.format(**{k: v for k, v in fields.items() if k in present})

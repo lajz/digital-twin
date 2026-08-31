@@ -175,21 +175,18 @@ def run_loop(
     sources: dict[int, str] = {}
     budget = cfg.runtime_budget_for(dataset.task.name)
 
-    from medusa import domains
-
-    dom = domains.get(dataset.name)
-    base_prompt = cfg.system_prompt_override or (
-        dom.system_prompt if dom else cfg.system_prompt_for(dataset.task.name)
-    )
+    # `LoopConfig`'s per-task prompt defaults == the domain's own prompt, so reading
+    # from cfg here is what lets the meta-loop evolve prompts.
+    base_prompt = cfg.system_prompt_override or cfg.system_prompt_for(dataset.task.name)
     system_prompt = base_prompt.replace("{twin_runtime_budget_s}", f"{budget:g}")
     fit_table = obs_table(dataset.fit, cfg.context_obs_max_points)
-    previous_section = prompts.FIRST_ITERATION_PREVIOUS
+    previous_section = cfg.first_iteration_text
     best_seen = float("inf")
     iters_since_improve = 0
 
     for i in range(1, cfg.max_iters + 1):
         nudge = (
-            prompts.DIVERSITY_NUDGE
+            cfg.diversity_nudge_text
             if cfg.diversity_nudge_every and i % cfg.diversity_nudge_every == 0
             else ""
         )
@@ -197,6 +194,7 @@ def run_loop(
             cfg.iteration_template,
             datasheet=dataset.datasheet or f"dataset: {dataset.name}",
             obs_table=fit_table,
+            helper_library=cfg.helper_library,
             archive_summary=archive.summary_text(cfg.archive_summary_top_k),
             previous_section=previous_section,
             diversity_nudge=nudge,

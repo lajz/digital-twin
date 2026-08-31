@@ -16,3 +16,4 @@ __pycache__/
 /runs/sample/player.html
 /runs/sample-saas/demo.html
 .env
+/.cache/
