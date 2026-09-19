@@ -217,6 +217,31 @@ def test_collect_diff_raises_clear_error_on_bad_ref(repo, monkeypatch):
         collect_diff(ReviewConfig(base_ref="not-a-real-ref", head_ref="HEAD"))
 
 
+def test_collect_diff_auto_detects_base_via_fallback_list(repo, monkeypatch):
+    # No origin remote in this repo, so `_default_base()` falls through
+    # `_FALLBACK_BASES` to a local "master" branch.
+    _git("branch", "master", cwd=repo)
+    (repo / "a.txt").write_text("one\ntwo\n")
+    _git("commit", "-aqm", "add a line", cwd=repo)
+    monkeypatch.chdir(repo)
+    result = collect_diff(ReviewConfig())  # base_ref unset
+    assert result is not None
+    assert result.base_ref == "master"
+
+
+def test_collect_diff_wraps_missing_git_binary_during_auto_detect(repo, monkeypatch):
+    monkeypatch.chdir(repo)
+
+    def _boom(*args, **kwargs):
+        raise FileNotFoundError("git: command not found")
+
+    monkeypatch.setattr(subprocess, "run", _boom)
+    # base_ref unset -> collect_diff must route the _default_base() call through the
+    # same try/except as everything else, not raise a bare FileNotFoundError.
+    with pytest.raises(RuntimeError, match="could not run git"):
+        collect_diff(ReviewConfig())
+
+
 def test_collect_diff_respects_a_tiny_byte_budget(repo, monkeypatch):
     # A budget smaller than the first line must not push the result back over it by
     # appending a newline to a mid-line slice.

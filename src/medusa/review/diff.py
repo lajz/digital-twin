@@ -50,10 +50,12 @@ def collect_diff(cfg: ReviewConfig) -> DiffResult | None:
     """None means there's nothing to review (head == base, or the merge-base diff is empty).
     Raises RuntimeError with the underlying git error for a bad ref or non-git cwd --
     the caller decides whether that should still let the push through."""
-    base = cfg.base_ref or _default_base()
     head = cfg.head_ref or "HEAD"
 
     try:
+        # _default_base() also shells out to git -- keep it inside the try so a
+        # missing git binary is reported the same way as a failure further down.
+        base = cfg.base_ref or _default_base()
         diff = _run(["git", "diff", "--merge-base", base, head])
         if not diff.strip():
             return None

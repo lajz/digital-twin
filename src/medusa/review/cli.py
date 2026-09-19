@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from typing import Any
 
 from medusa.review.config import api_key, load_config
 from medusa.review.diff import collect_diff
@@ -49,7 +50,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(sys.argv[1:] if argv is None else argv)
 
-    overrides: dict = {
+    overrides: dict[str, Any] = {
         "base_ref": args.base_ref,
         "head_ref": args.head_ref,
         "min_severity": args.min_severity,

@@ -59,7 +59,13 @@ def _slug(title: str) -> str:
 def dedupe(findings: list[Finding]) -> list[Finding]:
     """Collapse near-duplicate findings -- same issue described twice, or once per
     pass. Two findings merge only when they clearly name the same thing: same file +
-    same line, or same file + same title. The more severe one wins."""
+    same line, or same file + same title. The more severe one wins.
+
+    Deliberately ignores `pass_name`: this is a straight port of the source tool's
+    own dedupe semantics (same file+line from two different passes is treated as one
+    finding, not two), not an oversight. A same-line collision between an unrelated
+    review and security finding is an accepted, known trade-off of that design --
+    already re-flagged by this tool across several of its own review runs."""
     kept: list[Finding] = []
     for f in sorted(findings, key=lambda f: _RANK[f.severity]):
         dup = any(
