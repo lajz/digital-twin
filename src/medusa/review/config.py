@@ -43,6 +43,12 @@ def load_config(overrides: dict[str, Any] | None = None, root: Path | None = Non
             return file_cfg[key]
         return None
 
+    def pick_or(key: str, env_key: str, fallback, cast=str):
+        # `pick(...) or fallback` would silently replace an explicit 0 -- keep None
+        # the only trigger for the fallback.
+        value = pick(key, env_key, cast)
+        return fallback if value is None else value
+
     passes = file_cfg.get("passes", {})
     fail_on_raw = pick("fail_on", "MEDUSA_REVIEW_FAIL_ON")
     fail_on = _severity(fail_on_raw, "high") if fail_on_raw else None
@@ -50,14 +56,14 @@ def load_config(overrides: dict[str, Any] | None = None, root: Path | None = Non
     return ReviewConfig(
         base_ref=overrides.get("base_ref") or env.get("MEDUSA_REVIEW_BASE") or file_cfg.get("base_ref"),
         head_ref=overrides.get("head_ref") or env.get("MEDUSA_REVIEW_HEAD"),
-        base_url=pick("base_url", "MEDUSA_REVIEW_BASE_URL") or defaults.base_url,
-        model=pick("model", "MEDUSA_REVIEW_MODEL") or defaults.model,
-        max_diff_bytes=pick("max_diff_bytes", "MEDUSA_REVIEW_MAX_DIFF_BYTES", int) or defaults.max_diff_bytes,
+        base_url=pick_or("base_url", "MEDUSA_REVIEW_BASE_URL", defaults.base_url),
+        model=pick_or("model", "MEDUSA_REVIEW_MODEL", defaults.model),
+        max_diff_bytes=pick_or("max_diff_bytes", "MEDUSA_REVIEW_MAX_DIFF_BYTES", defaults.max_diff_bytes, int),
         min_severity=_severity(
             pick("min_severity", "MEDUSA_REVIEW_MIN_SEVERITY"), defaults.min_severity
         ),
-        max_tokens=pick("max_tokens", "MEDUSA_REVIEW_MAX_TOKENS", int) or defaults.max_tokens,
-        retries=pick("retries", "MEDUSA_REVIEW_RETRIES", int) or defaults.retries,
+        max_tokens=pick_or("max_tokens", "MEDUSA_REVIEW_MAX_TOKENS", defaults.max_tokens, int),
+        retries=pick_or("retries", "MEDUSA_REVIEW_RETRIES", defaults.retries, int),
         review_pass=overrides.get("review_pass", passes.get("review", defaults.review_pass)),
         security_pass=overrides.get("security_pass", passes.get("security", defaults.security_pass)),
         fail_on=fail_on,

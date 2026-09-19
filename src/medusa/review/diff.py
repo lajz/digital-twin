@@ -64,7 +64,10 @@ def collect_diff(cfg: ReviewConfig) -> DiffResult | None:
     truncated = False
     encoded = diff.encode()
     if len(encoded) > cfg.max_diff_bytes:
-        diff = encoded[: cfg.max_diff_bytes].decode(errors="ignore")
+        # Cut on a line boundary so we never hand the model a diff sliced mid-hunk
+        # (or mid multi-byte UTF-8 sequence).
+        clipped = encoded[: cfg.max_diff_bytes].decode(errors="ignore")
+        diff = clipped.rsplit("\n", 1)[0] + "\n"
         truncated = True
 
     return DiffResult(

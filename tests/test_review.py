@@ -3,12 +3,17 @@ and config precedence. No network calls."""
 
 from __future__ import annotations
 
+import dataclasses
 import json
+import subprocess
+
+import pytest
 
 from medusa.review.config import load_config
+from medusa.review.diff import collect_diff
 from medusa.review.passes import dedupe, normalize
 from medusa.review.provider import extract_json
-from medusa.review.types import Finding
+from medusa.review.types import Finding, ReviewConfig
 
 
 # --- extract_json -------------------------------------------------------------
@@ -21,6 +26,11 @@ def test_extract_json_plain():
 def test_extract_json_fenced():
     text = '```json\n{"findings": [{"severity": "low"}]}\n```'
     assert extract_json(text) == {"findings": [{"severity": "low"}]}
+
+
+def test_extract_json_handles_literal_braces_inside_values():
+    text = '{"findings": [{"detail": "use {placeholder} syntax"}]}'
+    assert extract_json(text) == {"findings": [{"detail": "use {placeholder} syntax"}]}
 
 
 def test_extract_json_with_surrounding_prose():
@@ -128,3 +138,64 @@ def test_load_config_review_only_override(tmp_path):
     cfg = load_config({"review_pass": True, "security_pass": False}, root=tmp_path)
     assert cfg.review_pass is True
     assert cfg.security_pass is False
+
+
+def test_load_config_falsy_numeric_overrides_are_not_swallowed(tmp_path):
+    # `pick(...) or default` would treat an explicit 0 as "unset" -- it must not.
+    cfg = load_config({"retries": 0, "max_tokens": 0}, root=tmp_path)
+    assert cfg.retries == 0
+    assert cfg.max_tokens == 0
+
+
+# --- collect_diff -----------------------------------------------------------------
+
+
+def _git(*args: str, cwd) -> None:
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
+
+
+@pytest.fixture
+def repo(tmp_path):
+    root = tmp_path / "repo"
+    root.mkdir()
+    _git("init", "-q", "-b", "main", cwd=root)
+    _git("config", "user.email", "t@example.com", cwd=root)
+    _git("config", "user.name", "T", cwd=root)
+    (root / "a.txt").write_text("one\n")
+    _git("add", "a.txt", cwd=root)
+    _git("commit", "-q", "-m", "base", cwd=root)
+    return root
+
+
+def test_collect_diff_none_when_head_equals_base(repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    result = collect_diff(ReviewConfig(base_ref="HEAD", head_ref="HEAD"))
+    assert result is None
+
+
+def test_collect_diff_detects_changed_file(repo, monkeypatch):
+    (repo / "a.txt").write_text("one\ntwo\n")
+    _git("commit", "-aqm", "add a line", cwd=repo)
+    monkeypatch.chdir(repo)
+    result = collect_diff(ReviewConfig(base_ref="HEAD~1", head_ref="HEAD"))
+    assert result is not None
+    assert result.changed_files == ["a.txt"]
+    assert not result.truncated
+    assert "+two" in result.diff
+
+
+def test_collect_diff_truncates_on_a_line_boundary(repo, monkeypatch):
+    (repo / "a.txt").write_text("\n".join(f"line{i}" for i in range(200)) + "\n")
+    _git("commit", "-aqm", "grow the file", cwd=repo)
+    monkeypatch.chdir(repo)
+    cfg = ReviewConfig(base_ref="HEAD~1", head_ref="HEAD")
+    full = collect_diff(cfg)
+    truncated = collect_diff(dataclasses.replace(cfg, max_diff_bytes=200))
+
+    assert truncated is not None
+    assert truncated.truncated
+    assert len(truncated.diff.encode()) <= 200
+    assert truncated.diff.endswith("\n")
+    # every line kept is a complete line from the untruncated diff -- none sliced mid-way
+    full_lines = set(full.diff.splitlines())
+    assert all(line in full_lines for line in truncated.diff.splitlines())

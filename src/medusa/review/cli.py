@@ -34,8 +34,9 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--min", dest="min_severity", choices=SEVERITIES, help="lowest severity to print"
     )
-    p.add_argument("--review-only", action="store_true", help="skip the security pass")
-    p.add_argument("--security-only", action="store_true", help="skip the general review pass")
+    only = p.add_mutually_exclusive_group()
+    only.add_argument("--review-only", action="store_true", help="skip the security pass")
+    only.add_argument("--security-only", action="store_true", help="skip the general review pass")
     p.add_argument(
         "--fail-on",
         dest="fail_on",
