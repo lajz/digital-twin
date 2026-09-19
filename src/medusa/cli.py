@@ -27,7 +27,9 @@ def _cfg_from_args(args: argparse.Namespace) -> LoopConfig:
 
         overrides["critic_stance"] = stance
         overrides["critic_prompt"] = critic.prompt_for_stance(stance)
-    if getattr(args, "critic", False) or stance:
+    if getattr(args, "no_critic", False):
+        overrides["critic_enabled"] = False
+    elif getattr(args, "critic", False) or stance:
         overrides["critic_enabled"] = True
     return dataclasses.replace(DEFAULT_LOOP_CONFIG, **overrides)
 
@@ -324,7 +326,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--diversity-nudge-every", dest="diversity_nudge_every", type=int)
         sp.add_argument("--thinking", action="store_true")
         sp.add_argument("--critic", action="store_true",
-                        help="enable the in-run critic (soft NL feedback into each prompt)")
+                        help="force the in-run critic on, overriding the per-domain default "
+                             "(soft NL feedback into each prompt)")
+        sp.add_argument("--no-critic", dest="no_critic", action="store_true",
+                        help="force the in-run critic off, overriding the per-domain default")
         sp.add_argument("--critic-stance", dest="critic_stance", choices=("coach", "skeptic"),
                         help="critic stance to seed (implies --critic)")
         sp.add_argument("--critic-every", dest="critic_every", type=int,

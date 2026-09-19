@@ -87,8 +87,11 @@ class LoopConfig:
     context_obs_max_points: int = 60  # downsample fit-window table to <= this many rows
     archive_summary_top_k: int = 6  # families to describe back to the agent
 
-    # in-run critic -- soft NL feedback into the next iteration's prompt (OFF by default)
-    critic_enabled: bool = False
+    # in-run critic -- soft NL feedback into the next iteration's prompt. None (the
+    # default) resolves per-dataset from the domain's `kind` (see `critic.resolve_enabled`
+    # -- on for real data, off for synthetic/business); True/False forces it either way,
+    # which is what the CLI's --critic/--no-critic and a genome-touched knob set.
+    critic_enabled: bool | None = None
     critic_every: int = 1              # run the critic every Nth scored iteration
     critic_stance: str = "coach"      # provenance label + CLI seed selector: "coach"|"skeptic"
     critic_prompt: str = critic.COACH_PROMPT           # the critic's SYSTEM prompt (evolvable)
