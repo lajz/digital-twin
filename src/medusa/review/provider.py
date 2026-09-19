@@ -25,8 +25,15 @@ def _client(cfg: ReviewConfig):
     return OpenAI(api_key=key, base_url=cfg.base_url)
 
 
+def _scrub(text: str, key: str | None) -> str:
+    """The final failure message embeds the raw SDK exception; some providers echo
+    request details on error, so don't let the key itself end up in a printed log."""
+    return text.replace(key, "***") if key else text
+
+
 def complete(system: str, user: str, cfg: ReviewConfig) -> str:
     client = _client(cfg)
+    key = review_config.api_key()
     last_exc: Exception | None = None
     for attempt in range(cfg.retries + 1):
         try:
@@ -56,7 +63,8 @@ def complete(system: str, user: str, cfg: ReviewConfig) -> str:
             last_exc = exc
             if attempt < cfg.retries:
                 time.sleep(min(2**attempt, 20))
-    raise RuntimeError(f"review model call failed after {cfg.retries + 1} attempts: {last_exc}")
+    message = _scrub(str(last_exc), key)
+    raise RuntimeError(f"review model call failed after {cfg.retries + 1} attempts: {message}")
 
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)

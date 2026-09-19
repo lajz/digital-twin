@@ -13,7 +13,7 @@ from medusa.review import cli
 from medusa.review.config import load_config
 from medusa.review.diff import DiffResult, collect_diff
 from medusa.review.passes import dedupe, normalize
-from medusa.review.provider import extract_json
+from medusa.review.provider import _scrub, extract_json
 from medusa.review.types import Finding, ReviewConfig
 
 
@@ -41,6 +41,17 @@ def test_extract_json_top_level_array_is_not_a_dict():
 
 def test_extract_json_top_level_scalar_is_not_a_dict():
     assert extract_json("42") == {}
+
+
+# --- _scrub -----------------------------------------------------------------------
+
+
+def test_scrub_removes_the_key_from_an_error_message():
+    assert _scrub("401 for key sk-secret123", "sk-secret123") == "401 for key ***"
+
+
+def test_scrub_is_a_noop_without_a_key():
+    assert _scrub("some error", None) == "some error"
 
 
 def test_extract_json_with_surrounding_prose():
