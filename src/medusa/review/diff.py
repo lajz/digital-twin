@@ -61,6 +61,10 @@ def collect_diff(cfg: ReviewConfig) -> DiffResult | None:
     except subprocess.CalledProcessError as exc:
         stderr = (exc.stderr or "").strip()
         raise RuntimeError(f"git diff {base}..{head} failed: {stderr or exc}") from exc
+    except OSError as exc:
+        # e.g. FileNotFoundError if `git` isn't on PATH -- CalledProcessError doesn't
+        # cover that case, but callers only expect RuntimeError from this function.
+        raise RuntimeError(f"could not run git: {exc}") from exc
 
     changed_files = [f for f in names.splitlines() if f]
 

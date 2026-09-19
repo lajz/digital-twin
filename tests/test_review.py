@@ -9,8 +9,9 @@ import subprocess
 
 import pytest
 
+from medusa.review import cli
 from medusa.review.config import load_config
-from medusa.review.diff import collect_diff
+from medusa.review.diff import DiffResult, collect_diff
 from medusa.review.passes import dedupe, normalize
 from medusa.review.provider import extract_json
 from medusa.review.types import Finding, ReviewConfig
@@ -227,3 +228,69 @@ def test_collect_diff_respects_a_tiny_byte_budget(repo, monkeypatch):
     assert result is not None
     assert result.truncated
     assert len(result.diff.encode()) <= 5
+
+
+# --- cli.main -----------------------------------------------------------------
+
+_DIFF = DiffResult(
+    diff="+ x", changed_files=["a.py"], base_ref="origin/main", head_ref="HEAD", truncated=False
+)
+
+
+def _finding(**overrides) -> Finding:
+    base = dict(
+        severity="low", file="a.py", line=1, title="Some issue",
+        detail="detail", suggestion="", pass_name="review",
+    )
+    base.update(overrides)
+    return Finding(**base)
+
+
+def test_main_skips_when_no_reviewable_changes(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "collect_diff", lambda cfg: None)
+    assert cli.main([]) == 0
+    assert "no reviewable changes" in capsys.readouterr().out
+
+
+def test_main_skips_without_an_api_key(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "collect_diff", lambda cfg: _DIFF)
+    monkeypatch.setattr(cli, "api_key", lambda: None)
+    assert cli.main([]) == 0
+    assert "no API key set" in capsys.readouterr().out
+
+
+def test_main_fail_on_gates_the_exit_code(monkeypatch):
+    monkeypatch.setattr(cli, "collect_diff", lambda cfg: _DIFF)
+    monkeypatch.setattr(cli, "api_key", lambda: "k")
+    monkeypatch.setattr(cli, "run_pass", lambda name, diff, cfg: [_finding(severity="high")])
+
+    assert cli.main(["--fail-on", "high"]) == 1
+    assert cli.main([]) == 0  # same findings, but no --fail-on -> still exits 0
+
+
+def test_main_handles_run_pass_failure_without_crashing(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "collect_diff", lambda cfg: _DIFF)
+    monkeypatch.setattr(cli, "api_key", lambda: "k")
+
+    def _boom(name, diff, cfg):
+        raise RuntimeError("model call failed")
+
+    monkeypatch.setattr(cli, "run_pass", _boom)
+    assert cli.main([]) == 0
+    assert "reporting partial results" in capsys.readouterr().out
+
+
+def test_main_appends_truncation_notice_for_the_model(monkeypatch):
+    truncated_diff = dataclasses.replace(_DIFF, truncated=True)
+    monkeypatch.setattr(cli, "collect_diff", lambda cfg: truncated_diff)
+    monkeypatch.setattr(cli, "api_key", lambda: "k")
+
+    seen: list[str] = []
+
+    def _capture(name, diff, cfg):
+        seen.append(diff)
+        return []
+
+    monkeypatch.setattr(cli, "run_pass", _capture)
+    cli.main([])
+    assert seen and "truncated at" in seen[0]

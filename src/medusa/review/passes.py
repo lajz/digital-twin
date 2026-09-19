@@ -72,8 +72,17 @@ def dedupe(findings: list[Finding]) -> list[Finding]:
     return kept
 
 
+KNOWN_PASSES = ("review", "security")
+
+
 def run_pass(name: str, diff: str, cfg: ReviewConfig) -> list[Finding]:
-    system = (PROMPT_DIR / f"{name}.md").read_text()
+    if name not in KNOWN_PASSES:
+        raise RuntimeError(f"unknown review pass '{name}' (expected one of {KNOWN_PASSES})")
+    prompt_path = PROMPT_DIR / f"{name}.md"
+    if not prompt_path.exists():
+        raise RuntimeError(f"missing prompt file for pass '{name}': {prompt_path}")
+
+    system = prompt_path.read_text()
     user = f"Here is the unified diff to review:\n\n{diff}"
     content = complete(system, user, cfg)
     parsed = extract_json(content)

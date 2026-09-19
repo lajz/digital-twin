@@ -10,7 +10,7 @@ from medusa.review.config import api_key, load_config
 from medusa.review.diff import collect_diff
 from medusa.review.passes import dedupe, run_pass
 from medusa.review.report import print_findings
-from medusa.review.types import SEVERITIES
+from medusa.review.types import SEVERITIES, Finding
 
 EPILOGUE = """
 Model config comes from .env / environment: DEEPSEEK_API_KEY (shared with the rest of
@@ -75,18 +75,28 @@ def main(argv: list[str] | None = None) -> int:
         print("medusa-review: no API key set -- skipping AI review (see --help)")
         return 0
 
+    diff_for_model = collected.diff
     if collected.truncated:
         print(f"medusa-review: diff exceeds {cfg.max_diff_bytes} bytes, truncated")
+        # Tell the model the diff is partial so it doesn't report a spurious finding
+        # about the abrupt cutoff.
+        diff_for_model += (
+            f"\n\n[diff truncated at {cfg.max_diff_bytes} bytes -- changes past this "
+            "point are not shown]"
+        )
     print(
         f"medusa-review: reviewing {len(collected.changed_files)} file(s) "
         f"({collected.base_ref}..{collected.head_ref}) with {cfg.model} ..."
     )
 
-    findings = []
-    if cfg.review_pass:
-        findings += run_pass("review", collected.diff, cfg)
-    if cfg.security_pass:
-        findings += run_pass("security", collected.diff, cfg)
+    findings: list[Finding] = []
+    try:
+        if cfg.review_pass:
+            findings += run_pass("review", diff_for_model, cfg)
+        if cfg.security_pass:
+            findings += run_pass("security", diff_for_model, cfg)
+    except RuntimeError as exc:
+        print(f"medusa-review: {exc} -- reporting partial results")
     findings = dedupe(findings)
 
     print_findings(findings, cfg)
