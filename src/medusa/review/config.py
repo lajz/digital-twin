@@ -35,13 +35,18 @@ def load_config(overrides: dict[str, Any] | None = None, root: Path | None = Non
     defaults = ReviewConfig()
 
     def pick(key: str, env_key: str, cast=str):
+        # `cast` applies no matter which source wins -- a quoted number in
+        # .medusa-review.json (`"max_diff_bytes": "400000"`) must come out an int
+        # here, not slip through as a str and blow up later at a numeric comparison.
         if overrides.get(key) is not None:
-            return overrides[key]
-        if env.get(env_key) is not None:
-            return cast(env[env_key])
-        if file_cfg.get(key) is not None:
-            return file_cfg[key]
-        return None
+            value = overrides[key]
+        elif env.get(env_key) is not None:
+            value = env[env_key]
+        elif file_cfg.get(key) is not None:
+            value = file_cfg[key]
+        else:
+            return None
+        return cast(value)
 
     def pick_or(key: str, env_key: str, fallback, cast=str):
         # `pick(...) or fallback` would silently replace an explicit 0 -- keep None
@@ -49,8 +54,12 @@ def load_config(overrides: dict[str, Any] | None = None, root: Path | None = Non
         value = pick(key, env_key, cast)
         return fallback if value is None else value
 
-    passes = file_cfg.get("passes", {})
+    passes = file_cfg.get("passes")
+    if not isinstance(passes, dict):  # malformed .medusa-review.json -- fall back
+        passes = {}
     fail_on_raw = pick("fail_on", "MEDUSA_REVIEW_FAIL_ON")
+    # An unrecognized value fails closed (the strictest gate) rather than silently
+    # disabling the gate a typo was trying to set.
     fail_on = _severity(fail_on_raw, "high") if fail_on_raw else None
 
     return ReviewConfig(

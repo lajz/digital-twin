@@ -78,7 +78,10 @@ def collect_diff(cfg: ReviewConfig) -> DiffResult | None:
         # slice -- appending a newline instead could push a tiny budget back over it.
         clipped = encoded[: cfg.max_diff_bytes].decode(errors="ignore")
         last_newline = clipped.rfind("\n")
-        diff = clipped[: last_newline + 1] if last_newline != -1 else clipped
+        # No complete line fits in the budget at all -- an empty diff still respects
+        # both invariants (within budget, no mid-line slice); a non-empty mid-line
+        # slice would violate the second one.
+        diff = clipped[: last_newline + 1] if last_newline != -1 else ""
         truncated = True
 
     return DiffResult(

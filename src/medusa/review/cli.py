@@ -91,13 +91,15 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     findings: list[Finding] = []
-    try:
-        if cfg.review_pass:
-            findings += run_pass("review", diff_for_model, cfg)
-        if cfg.security_pass:
-            findings += run_pass("security", diff_for_model, cfg)
-    except RuntimeError as exc:
-        print(f"medusa-review: {exc} -- reporting partial results")
+    for name, enabled in (("review", cfg.review_pass), ("security", cfg.security_pass)):
+        if not enabled:
+            continue
+        try:
+            findings += run_pass(name, diff_for_model, cfg)
+        except RuntimeError as exc:
+            # One pass failing (a transient API error, a missing prompt file) must
+            # not skip the other -- each pass covers different ground.
+            print(f"medusa-review: {name} pass failed ({exc}) -- skipping it")
     findings = dedupe(findings)
 
     print_findings(findings, cfg)

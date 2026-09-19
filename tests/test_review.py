@@ -157,6 +157,24 @@ def test_load_config_falsy_numeric_overrides_are_not_swallowed(tmp_path):
     assert cfg.max_tokens == 0
 
 
+def test_load_config_casts_a_quoted_number_from_the_file(tmp_path):
+    # json.loads would hand back a str for a quoted number; pick() must still cast
+    # it to int rather than letting a str reach ReviewConfig.max_diff_bytes.
+    (tmp_path / ".medusa-review.json").write_text(
+        json.dumps({"max_diff_bytes": "1234", "retries": "3"})
+    )
+    cfg = load_config(root=tmp_path)
+    assert cfg.max_diff_bytes == 1234
+    assert cfg.retries == 3
+
+
+def test_load_config_malformed_passes_value_falls_back_to_defaults(tmp_path):
+    (tmp_path / ".medusa-review.json").write_text(json.dumps({"passes": True}))
+    cfg = load_config(root=tmp_path)  # must not raise AttributeError on `passes.get`
+    assert cfg.review_pass is True
+    assert cfg.security_pass is True
+
+
 # --- collect_diff -----------------------------------------------------------------
 
 
@@ -242,9 +260,10 @@ def test_collect_diff_wraps_missing_git_binary_during_auto_detect(repo, monkeypa
         collect_diff(ReviewConfig())
 
 
-def test_collect_diff_respects_a_tiny_byte_budget(repo, monkeypatch):
-    # A budget smaller than the first line must not push the result back over it by
-    # appending a newline to a mid-line slice.
+def test_collect_diff_tiny_budget_yields_empty_diff_not_a_mid_line_slice(repo, monkeypatch):
+    # A budget smaller than even the first line must not push the result back over
+    # it (by appending a newline to a mid-line slice), and must not hand back a
+    # mid-line fragment either -- an empty diff is the only value satisfying both.
     (repo / "a.txt").write_text("a-long-first-line-with-no-early-break\nsecond\n")
     _git("commit", "-aqm", "grow", cwd=repo)
     monkeypatch.chdir(repo)
@@ -252,7 +271,7 @@ def test_collect_diff_respects_a_tiny_byte_budget(repo, monkeypatch):
     result = collect_diff(cfg)
     assert result is not None
     assert result.truncated
-    assert len(result.diff.encode()) <= 5
+    assert result.diff == ""
 
 
 # --- cli.main -----------------------------------------------------------------
@@ -302,7 +321,24 @@ def test_main_handles_run_pass_failure_without_crashing(monkeypatch, capsys):
 
     monkeypatch.setattr(cli, "run_pass", _boom)
     assert cli.main([]) == 0
-    assert "reporting partial results" in capsys.readouterr().out
+    assert "pass failed" in capsys.readouterr().out
+
+
+def test_main_one_pass_failing_does_not_skip_the_other(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "collect_diff", lambda cfg: _DIFF)
+    monkeypatch.setattr(cli, "api_key", lambda: "k")
+    calls: list[str] = []
+
+    def _fake(name, diff, cfg):
+        calls.append(name)
+        if name == "review":
+            raise RuntimeError("boom")
+        return [_finding(pass_name="security")]
+
+    monkeypatch.setattr(cli, "run_pass", _fake)
+    assert cli.main([]) == 0
+    assert calls == ["review", "security"]  # security still ran despite review's failure
+    assert "review pass failed" in capsys.readouterr().out
 
 
 def test_main_appends_truncation_notice_for_the_model(monkeypatch):
