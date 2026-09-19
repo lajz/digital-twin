@@ -1,0 +1,72 @@
+"""Model call for a review pass: an OpenAI-compatible chat completion against DeepSeek,
+plus tolerant JSON extraction from its response."""
+
+from __future__ import annotations
+
+import json
+import re
+import time
+from typing import Any
+
+from medusa import config as medusa_config
+from medusa.review import config as review_config
+from medusa.review.types import ReviewConfig
+
+
+def _client(cfg: ReviewConfig):
+    from openai import OpenAI
+
+    key = review_config.api_key()
+    if not key:
+        raise RuntimeError(
+            f"No review API key set. Put {medusa_config.DEEPSEEK_API_KEY_ENV} (or "
+            "MEDUSA_REVIEW_API_KEY for a separate budget) in .env or the environment."
+        )
+    return OpenAI(api_key=key, base_url=cfg.base_url)
+
+
+def complete(system: str, user: str, cfg: ReviewConfig) -> str:
+    client = _client(cfg)
+    last_exc: Exception | None = None
+    for attempt in range(cfg.retries + 1):
+        try:
+            resp = client.chat.completions.create(
+                model=cfg.model,
+                temperature=0.2,
+                max_tokens=cfg.max_tokens,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                # deepseek-v4-flash reasons by default and can burn the whole token
+                # budget on reasoning before emitting any content -- must disable it
+                # explicitly (medusa.agent.deepseek carries the same note).
+                extra_body={"thinking": {"type": "disabled"}},
+            )
+            return resp.choices[0].message.content or ""
+        except Exception as exc:  # noqa: BLE001 - broad retry, surfaced on final failure
+            last_exc = exc
+            time.sleep(min(2**attempt, 20))
+    raise RuntimeError(f"review model call failed after {cfg.retries + 1} attempts: {last_exc}")
+
+
+_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
+
+
+def extract_json(text: str) -> dict[str, Any]:
+    """Models routinely wrap JSON in a markdown fence or add stray prose; pull the
+    object out rather than requiring an exact match."""
+    text = text.strip()
+    match = _FENCE_RE.search(text)
+    candidate = match.group(1).strip() if match else text
+    try:
+        return json.loads(candidate)
+    except json.JSONDecodeError:
+        pass
+    start, end = candidate.find("{"), candidate.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        try:
+            return json.loads(candidate[start : end + 1])
+        except json.JSONDecodeError:
+            pass
+    return {}

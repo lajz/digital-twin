@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Installed via: git config core.hooksPath .githooks
+#
+# Deterministic checks (tests) BLOCK the push. The AI review is advisory and never
+# blocks -- it's a second pair of eyes, not a gate.
+set -euo pipefail
+
+if [ -n "${SKIP_REVIEW_GATE:-}" ]; then
+  echo "pre-push: SKIP_REVIEW_GATE set -- skipping checks entirely"
+  exit 0
+fi
+
+echo "pre-push: running tests..."
+if ! uv run pytest -q; then
+  echo "pre-push: tests failed -- push blocked (skip with SKIP_REVIEW_GATE=1, or git push --no-verify)"
+  exit 1
+fi
+
+if [ -n "${SKIP_AI_REVIEW:-}" ]; then
+  echo "pre-push: SKIP_AI_REVIEW set -- skipping AI review"
+  exit 0
+fi
+
+echo "pre-push: running AI review (advisory, never blocks the push)..."
+uv run medusa-review || true
+exit 0

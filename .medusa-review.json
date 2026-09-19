@@ -1,0 +1,9 @@
+{
+  "model": "deepseek-v4-flash",
+  "base_url": "https://api.deepseek.com",
+  "min_severity": "nit",
+  "max_diff_bytes": 400000,
+  "max_tokens": 16000,
+  "retries": 2,
+  "passes": { "review": true, "security": true }
+}
