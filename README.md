@@ -70,6 +70,32 @@ Output lands in `runs/<timestamp>-<dataset>/`:
 | `portfolio/` | best twin per family, top 3 — code, params, forecast plot, `portfolio.md` |
 | `scorecard.json` | `LoopMetrics` — how the *loop* did (see below) |
 
+## Development
+
+```bash
+git config core.hooksPath .githooks   # one-time: install the pre-push hook
+```
+
+`git push` then runs `pytest` (blocking) followed by `medusa-review` (advisory,
+never blocks): a DeepSeek pass over `git diff --merge-base <base> HEAD` covering
+correctness/tests/simplification and a separate security pass focused on the
+harness sandbox, path handling under `runs/`/`.cache/`, and secret handling. No
+`DEEPSEEK_API_KEY` ⇒ the AI review is silently skipped; the test gate still runs.
+
+```bash
+uv run medusa-review                     # same as the hook's advisory pass
+uv run medusa-review --base origin/feedback-loop-digital-twin --min medium
+uv run medusa-review --security-only
+uv run medusa-review --fail-on high      # exit non-zero on a high finding
+```
+
+Escape hatches: `SKIP_REVIEW_GATE=1 git push` skips both checks, `SKIP_AI_REVIEW=1
+git push` skips only the AI pass, `git push --no-verify` skips the hook entirely.
+Config precedence is defaults < `.medusa-review.json` (committed) < environment <
+CLI flags; `MEDUSA_REVIEW_MODEL` / `MEDUSA_REVIEW_BASE_URL` override the model, and
+`MEDUSA_REVIEW_API_KEY` gives it a separate key/budget from the main loop's
+`DEEPSEEK_API_KEY`. Local-only for now — no GitHub Action / inline PR comments yet.
+
 ## The twin contract
 
 Every generated `twin.py` must define a `Twin` class with:
