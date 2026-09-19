@@ -78,9 +78,11 @@ def load_config(overrides: dict[str, Any] | None = None, root: Path | None = Non
     fail_on = _severity(fail_on_raw, "high") if fail_on_raw else None
 
     return ReviewConfig(
-        # Every field below goes through the same `pick` precedence chain (overrides <
-        # env < file_cfg) -- no field-specific `or` chains, so there's nothing for a
-        # future pass over this function to accidentally make asymmetric.
+        # Every scalar field below goes through the same `pick` precedence chain
+        # (overrides < env < file_cfg) -- no field-specific `or` chains. The two
+        # booleans just below are the deliberate exception: `passes` is a nested
+        # dict, not a flat env-backed key, so they read straight from
+        # overrides/file_cfg via `_as_bool` instead.
         base_ref=pick("base_ref", "MEDUSA_REVIEW_BASE"),
         head_ref=pick("head_ref", "MEDUSA_REVIEW_HEAD"),
         base_url=pick_or("base_url", "MEDUSA_REVIEW_BASE_URL", defaults.base_url),
