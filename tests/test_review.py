@@ -121,6 +121,16 @@ def test_dedupe_keeps_distinct_findings():
     assert len(dedupe(findings)) == 2
 
 
+def test_dedupe_does_not_merge_two_untitled_findings_in_the_same_file():
+    # normalize() gives every titleless finding the same fallback title -- that must
+    # not make the title-slug merge treat them as the same issue.
+    findings = [
+        _finding(line=None, title="Unlabeled finding", detail="issue A"),
+        _finding(line=None, title="Unlabeled finding", detail="issue B"),
+    ]
+    assert len(dedupe(findings)) == 2
+
+
 # --- config precedence -----------------------------------------------------------
 
 

@@ -12,6 +12,7 @@ from medusa.review.types import SEVERITIES, Finding, ReviewConfig, Severity
 
 PROMPT_DIR = Path(__file__).parent / "prompts"
 _RANK = {s: i for i, s in enumerate(SEVERITIES)}
+_FALLBACK_TITLE = "Unlabeled finding"
 
 
 def _severity(value: Any) -> Severity:
@@ -43,7 +44,7 @@ def normalize(raw: list[Any], pass_name: str) -> list[Finding]:
                 severity=_severity(item.get("severity")),
                 file=_str(item.get("file"), "(unspecified)"),
                 line=_line(item.get("line")),
-                title=_str(item.get("title"), "Unlabeled finding"),
+                title=_str(item.get("title"), _FALLBACK_TITLE),
                 detail=detail,
                 suggestion=_str(item.get("suggestion")),
                 pass_name=pass_name,
@@ -70,7 +71,16 @@ def dedupe(findings: list[Finding]) -> list[Finding]:
     for f in sorted(findings, key=lambda f: _RANK[f.severity]):
         dup = any(
             k.file == f.file
-            and ((f.line is not None and k.line == f.line) or _slug(k.title) == _slug(f.title))
+            and (
+                (f.line is not None and k.line == f.line)
+                # The fallback title is a placeholder, not an identifying name -- two
+                # untitled findings in the same file are not necessarily duplicates.
+                or (
+                    f.title != _FALLBACK_TITLE
+                    and k.title != _FALLBACK_TITLE
+                    and _slug(k.title) == _slug(f.title)
+                )
+            )
             for k in kept
         )
         if not dup:
