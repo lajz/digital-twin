@@ -56,6 +56,11 @@ DEFAULT_SUITE = [n for n, e in SUITE.items() if e.kind == "synthetic"]
 # in TRAIN (where their variance just adds exploration pressure -- the digest still sees
 # them) and TEST (the honest business check at the very end). VAL is the three stable
 # bacterial datasets, so the ranking / early-stop signal is clean.
+#
+# TEST also carries the one real (non-synthetic) domain, `ipb-ecoli`: TRAIN/VAL never
+# touch real data, so nothing in the hill-climb can overfit to it, but the final honest
+# number still says whether the evolved genome generalizes to the actual biology this
+# project targets -- not just to synthetic proxies.
 META_TRAIN = ("synthetic-ecoli-fast", "synthetic-lag-heavy", "saas-plateau")
 META_VAL = ("synthetic-bsub-mid", "synthetic-yeast-slow", "synthetic-noisy-sparse")
-META_TEST = ("saas-seed",)
+META_TEST = ("saas-seed", "ipb-ecoli")
