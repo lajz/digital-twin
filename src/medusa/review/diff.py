@@ -49,7 +49,11 @@ def _default_base() -> str:
 def collect_diff(cfg: ReviewConfig) -> DiffResult | None:
     """None means there's nothing to review (head == base, or the merge-base diff is empty).
     Raises RuntimeError with the underlying git error for a bad ref or non-git cwd --
-    the caller decides whether that should still let the push through."""
+    the caller decides whether that should still let the push through.
+
+    base_ref/head_ref come from local config/env/CLI flags -- the developer's own
+    machine, not untrusted input -- so they're passed to git as-is. Revisit this if
+    a remote sink is ever added that runs against a PR-supplied ref."""
     head = cfg.head_ref or "HEAD"
 
     try:
@@ -78,10 +82,11 @@ def collect_diff(cfg: ReviewConfig) -> DiffResult | None:
         # slice -- appending a newline instead could push a tiny budget back over it.
         clipped = encoded[: cfg.max_diff_bytes].decode(errors="ignore")
         last_newline = clipped.rfind("\n")
-        # No complete line fits in the budget at all -- an empty diff still respects
-        # both invariants (within budget, no mid-line slice); a non-empty mid-line
-        # slice would violate the second one.
-        diff = clipped[: last_newline + 1] if last_newline != -1 else ""
+        if last_newline == -1:
+            # Not even one complete line fits the budget -- there's nothing sane to
+            # send the model (a mid-line slice would look like noise, not a diff).
+            return None
+        diff = clipped[: last_newline + 1]
         truncated = True
 
     return DiffResult(

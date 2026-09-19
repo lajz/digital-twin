@@ -32,6 +32,9 @@ def complete(system: str, user: str, cfg: ReviewConfig) -> str:
         try:
             resp = client.chat.completions.create(
                 model=cfg.model,
+                # Fixed, not a ReviewConfig field: this is the one call site, and low
+                # temperature is what makes findings reproducible run to run -- not a
+                # knob a caller should need to reach for.
                 temperature=0.2,
                 max_tokens=cfg.max_tokens,
                 messages=[
@@ -44,6 +47,11 @@ def complete(system: str, user: str, cfg: ReviewConfig) -> str:
                 extra_body={"thinking": {"type": "disabled"}},
             )
             return resp.choices[0].message.content or ""
+        # Broad on purpose, matching medusa.agent.deepseek.DeepSeekClient's identical
+        # retry loop: this call site sees the same mix of transient (rate limit,
+        # timeout) and permanent (bad key, bad model name) failures, and the repo's
+        # existing convention is to retry-then-surface rather than special-case each
+        # exception type.
         except Exception as exc:  # noqa: BLE001 - broad retry, surfaced on final failure
             last_exc = exc
             if attempt < cfg.retries:

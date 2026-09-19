@@ -175,6 +175,17 @@ def test_load_config_malformed_passes_value_falls_back_to_defaults(tmp_path):
     assert cfg.security_pass is True
 
 
+def test_load_config_coerces_a_quoted_bool_in_passes(tmp_path):
+    # A hand-edited .medusa-review.json with `"security": "false"` is a Python-truthy
+    # string; it must still disable the pass, not silently enable it.
+    (tmp_path / ".medusa-review.json").write_text(
+        json.dumps({"passes": {"review": "true", "security": "false"}})
+    )
+    cfg = load_config(root=tmp_path)
+    assert cfg.review_pass is True
+    assert cfg.security_pass is False
+
+
 # --- collect_diff -----------------------------------------------------------------
 
 
@@ -260,18 +271,16 @@ def test_collect_diff_wraps_missing_git_binary_during_auto_detect(repo, monkeypa
         collect_diff(ReviewConfig())
 
 
-def test_collect_diff_tiny_budget_yields_empty_diff_not_a_mid_line_slice(repo, monkeypatch):
-    # A budget smaller than even the first line must not push the result back over
-    # it (by appending a newline to a mid-line slice), and must not hand back a
-    # mid-line fragment either -- an empty diff is the only value satisfying both.
+def test_collect_diff_tiny_budget_yields_none_not_a_mid_line_slice(repo, monkeypatch):
+    # A budget smaller than even the first line has no complete line to send the
+    # model -- that's "nothing reviewable," same as an empty diff, not a mid-line
+    # fragment (which would look like noise rather than a diff) and not a result
+    # that exceeds the budget by appending a trailing newline.
     (repo / "a.txt").write_text("a-long-first-line-with-no-early-break\nsecond\n")
     _git("commit", "-aqm", "grow", cwd=repo)
     monkeypatch.chdir(repo)
     cfg = ReviewConfig(base_ref="HEAD~1", head_ref="HEAD", max_diff_bytes=5)
-    result = collect_diff(cfg)
-    assert result is not None
-    assert result.truncated
-    assert result.diff == ""
+    assert collect_diff(cfg) is None
 
 
 # --- cli.main -----------------------------------------------------------------

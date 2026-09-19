@@ -26,6 +26,21 @@ def _severity(value: Any, fallback: Severity) -> Severity:
     return value if value in SEVERITIES else fallback
 
 
+def _as_bool(value: Any, fallback: bool) -> bool:
+    """A JSON bool comes through as a real `bool` already; this only guards a
+    hand-edited `.medusa-review.json` where someone quoted it (`"false"`), which
+    Python would otherwise treat as truthy."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        low = value.strip().lower()
+        if low in ("true", "1", "yes"):
+            return True
+        if low in ("false", "0", "no"):
+            return False
+    return fallback
+
+
 def load_config(overrides: dict[str, Any] | None = None, root: Path | None = None) -> ReviewConfig:
     medusa_config.load_dotenv()
     overrides = overrides or {}
@@ -76,8 +91,12 @@ def load_config(overrides: dict[str, Any] | None = None, root: Path | None = Non
         ),
         max_tokens=pick_or("max_tokens", "MEDUSA_REVIEW_MAX_TOKENS", defaults.max_tokens, int),
         retries=pick_or("retries", "MEDUSA_REVIEW_RETRIES", defaults.retries, int),
-        review_pass=overrides.get("review_pass", passes.get("review", defaults.review_pass)),
-        security_pass=overrides.get("security_pass", passes.get("security", defaults.security_pass)),
+        review_pass=_as_bool(
+            overrides.get("review_pass", passes.get("review")), defaults.review_pass
+        ),
+        security_pass=_as_bool(
+            overrides.get("security_pass", passes.get("security")), defaults.security_pass
+        ),
         fail_on=fail_on,
     )
 

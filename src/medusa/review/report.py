@@ -16,7 +16,7 @@ def print_findings(findings: list[Finding], cfg: ReviewConfig) -> None:
         return
 
     for f in sorted(shown, key=lambda f: _RANK[f.severity]):
-        loc = f"{f.file}:{f.line}" if f.line else f.file
+        loc = f"{f.file}:{f.line}" if f.line is not None else f.file
         print(f"\n{_ICON[f.severity]} [{f.severity}] {f.pass_name} — {loc}")
         print(f"  {f.title}")
         print(f"  {f.detail}")
