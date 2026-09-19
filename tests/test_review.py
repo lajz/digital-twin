@@ -199,3 +199,9 @@ def test_collect_diff_truncates_on_a_line_boundary(repo, monkeypatch):
     # every line kept is a complete line from the untruncated diff -- none sliced mid-way
     full_lines = set(full.diff.splitlines())
     assert all(line in full_lines for line in truncated.diff.splitlines())
+
+
+def test_collect_diff_raises_clear_error_on_bad_ref(repo, monkeypatch):
+    monkeypatch.chdir(repo)
+    with pytest.raises(RuntimeError, match="git diff"):
+        collect_diff(ReviewConfig(base_ref="not-a-real-ref", head_ref="HEAD"))

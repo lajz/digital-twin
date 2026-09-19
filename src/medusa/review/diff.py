@@ -47,19 +47,22 @@ def _default_base() -> str:
 
 
 def collect_diff(cfg: ReviewConfig) -> DiffResult | None:
-    """None means there's nothing to review (head == base, or the merge-base diff is empty)."""
+    """None means there's nothing to review (head == base, or the merge-base diff is empty).
+    Raises RuntimeError with the underlying git error for a bad ref or non-git cwd --
+    the caller decides whether that should still let the push through."""
     base = cfg.base_ref or _default_base()
     head = cfg.head_ref or "HEAD"
 
-    diff = _run(["git", "diff", "--merge-base", base, head])
-    if not diff.strip():
-        return None
+    try:
+        diff = _run(["git", "diff", "--merge-base", base, head])
+        if not diff.strip():
+            return None
+        names = _run(["git", "diff", "--merge-base", base, head, "--name-only"])
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        raise RuntimeError(f"git diff {base}..{head} failed: {stderr or exc}") from exc
 
-    changed_files = [
-        f
-        for f in _run(["git", "diff", "--merge-base", base, head, "--name-only"]).splitlines()
-        if f
-    ]
+    changed_files = [f for f in names.splitlines() if f]
 
     truncated = False
     encoded = diff.encode()

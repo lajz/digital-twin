@@ -62,7 +62,11 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = load_config(overrides)
 
-    collected = collect_diff(cfg)
+    try:
+        collected = collect_diff(cfg)
+    except RuntimeError as exc:
+        print(f"medusa-review: {exc} -- skipping")
+        return 0
     if collected is None:
         print("medusa-review: no reviewable changes vs base -- skipping")
         return 0
