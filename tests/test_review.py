@@ -33,6 +33,15 @@ def test_extract_json_handles_literal_braces_inside_values():
     assert extract_json(text) == {"findings": [{"detail": "use {placeholder} syntax"}]}
 
 
+def test_extract_json_top_level_array_is_not_a_dict():
+    # run_pass does `.get("findings")` on the result -- a bare array must not crash it.
+    assert extract_json("[1, 2, 3]") == {}
+
+
+def test_extract_json_top_level_scalar_is_not_a_dict():
+    assert extract_json("42") == {}
+
+
 def test_extract_json_with_surrounding_prose():
     text = 'Sure, here you go:\n\n{"findings": []}\n\nLet me know if you need more.'
     assert extract_json(text) == {"findings": []}
@@ -205,3 +214,16 @@ def test_collect_diff_raises_clear_error_on_bad_ref(repo, monkeypatch):
     monkeypatch.chdir(repo)
     with pytest.raises(RuntimeError, match="git diff"):
         collect_diff(ReviewConfig(base_ref="not-a-real-ref", head_ref="HEAD"))
+
+
+def test_collect_diff_respects_a_tiny_byte_budget(repo, monkeypatch):
+    # A budget smaller than the first line must not push the result back over it by
+    # appending a newline to a mid-line slice.
+    (repo / "a.txt").write_text("a-long-first-line-with-no-early-break\nsecond\n")
+    _git("commit", "-aqm", "grow", cwd=repo)
+    monkeypatch.chdir(repo)
+    cfg = ReviewConfig(base_ref="HEAD~1", head_ref="HEAD", max_diff_bytes=5)
+    result = collect_diff(cfg)
+    assert result is not None
+    assert result.truncated
+    assert len(result.diff.encode()) <= 5

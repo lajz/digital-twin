@@ -67,10 +67,12 @@ def collect_diff(cfg: ReviewConfig) -> DiffResult | None:
     truncated = False
     encoded = diff.encode()
     if len(encoded) > cfg.max_diff_bytes:
-        # Cut on a line boundary so we never hand the model a diff sliced mid-hunk
-        # (or mid multi-byte UTF-8 sequence).
+        # Cut on a line boundary so we never hand the model a diff sliced mid-hunk (or
+        # mid multi-byte UTF-8 sequence). Only ever take a PREFIX of the byte-limited
+        # slice -- appending a newline instead could push a tiny budget back over it.
         clipped = encoded[: cfg.max_diff_bytes].decode(errors="ignore")
-        diff = clipped.rsplit("\n", 1)[0] + "\n"
+        last_newline = clipped.rfind("\n")
+        diff = clipped[: last_newline + 1] if last_newline != -1 else clipped
         truncated = True
 
     return DiffResult(

@@ -46,7 +46,8 @@ def complete(system: str, user: str, cfg: ReviewConfig) -> str:
             return resp.choices[0].message.content or ""
         except Exception as exc:  # noqa: BLE001 - broad retry, surfaced on final failure
             last_exc = exc
-            time.sleep(min(2**attempt, 20))
+            if attempt < cfg.retries:
+                time.sleep(min(2**attempt, 20))
     raise RuntimeError(f"review model call failed after {cfg.retries + 1} attempts: {last_exc}")
 
 
@@ -55,18 +56,24 @@ _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 
 def extract_json(text: str) -> dict[str, Any]:
     """Models routinely wrap JSON in a markdown fence or add stray prose; pull the
-    object out rather than requiring an exact match."""
+    object out rather than requiring an exact match. Always returns a dict -- a
+    top-level JSON array or scalar is treated the same as unparsable text, since
+    callers do `.get("findings")` on the result."""
     text = text.strip()
     match = _FENCE_RE.search(text)
     candidate = match.group(1).strip() if match else text
     try:
-        return json.loads(candidate)
+        parsed = json.loads(candidate)
+        if isinstance(parsed, dict):
+            return parsed
     except json.JSONDecodeError:
         pass
     start, end = candidate.find("{"), candidate.rfind("}")
     if start != -1 and end != -1 and end > start:
         try:
-            return json.loads(candidate[start : end + 1])
+            parsed = json.loads(candidate[start : end + 1])
+            if isinstance(parsed, dict):
+                return parsed
         except json.JSONDecodeError:
             pass
     return {}

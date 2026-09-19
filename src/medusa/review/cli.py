@@ -92,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     print_findings(findings, cfg)
 
     if cfg.fail_on:
+        # SEVERITIES is ordered most-severe-first, so a lower rank is more severe.
         rank = {s: i for i, s in enumerate(SEVERITIES)}
         if any(rank[f.severity] <= rank[cfg.fail_on] for f in findings):
             return 1
