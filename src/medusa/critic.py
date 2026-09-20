@@ -53,6 +53,29 @@ def prompt_for_stance(name: str) -> str:
     return _STANCES.get(name, COACH_PROMPT)
 
 
+# --- domain-conditional default -------------------------------------------------
+
+# A live A/B (2026-09-19, `medusa bench --iters 8 --temperature 0.35`) found the critic
+# is not a uniform win: on real E. coli data it roughly halved holdout sMAPE (it catches
+# real-data-specific failure modes -- Monod-term unidentifiability, segmentation jitter
+# read as biology, missing lag phase -- that the base agent doesn't self-correct); on
+# synthetic bacterial data it made no measurable difference; on the synthetic SaaS domain
+# it regressed the (multi-dataset) result, for a reason that's still ambiguous on a
+# single-run SaaS-only re-check -- see the note by `domains.saas._register`. So the
+# default is per-domain, not global, and SaaS stays off pending a less noisy read.
+DEFAULT_ON_KINDS = frozenset({"real"})
+
+
+def resolve_enabled(critic_enabled: bool | None, domain_kind: str) -> bool:
+    """Effective on/off state for one dataset. `critic_enabled=None` (the `LoopConfig`
+    default, and a genome that never touched the knob) resolves from `domain_kind`; an
+    explicit True/False -- from the CLI or a genome that did touch the knob -- always
+    wins, so the meta-loop and `--critic`/`--no-critic` keep meaning "force it"."""
+    if critic_enabled is not None:
+        return critic_enabled
+    return domain_kind in DEFAULT_ON_KINDS
+
+
 # --- the critic's user-prompt scaffold (rendered fresh each iteration) ---------
 
 CRITIC_CONTEXT_TEMPLATE = """\

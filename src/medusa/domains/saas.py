@@ -200,6 +200,24 @@ SAAS_CONSTRAINTS = (
 
 # --- register -----------------------------------------------------------------
 
+# in-run critic default: off (`kind="business"` -> `critic.resolve_enabled` says no). A
+# 2026-09-19 5-dataset A/B (`medusa bench --iters 8 --temperature 0.35`) found the coach
+# stance regressed saas-seed's combined holdout sMAPE (0.068 off -> 0.115 coach), well
+# past the ~0.016 honest-bar noise band measured on the *aggregate* multi-dataset score.
+# A same-day saas-seed-only reproduction (`--datasets saas-seed`, n=1 each) read the
+# critic.md notes and initially matched the hypothesis: each round it pushed a genuinely
+# different structural family (acquisition-lag -> sales-capacity -> two-stage hiring ->
+# hiring-rate cap -> price-realisation curve -> cost-residual reweighting) rather than
+# refining one, and the agent abandoned `funnel-conversion` mid-improvement (0.465 ->
+# 0.388 -> 0.332) to chase the critic's next idea. But the *critic-off* baseline run in
+# the same session was just as unstable on its own -- 4 families in 8 iterations, no
+# convergence, and a worse final score than the critic-on run -- so this domain's
+# family-hopping looks at least partly intrinsic to its already-flagged high run-to-run
+# variance, not purely critic-induced. That single ambiguous re-check isn't enough to
+# either confirm a fix or overturn the original (much less noisy) 5-dataset result, so no
+# prompt change was made here. Leaving the default off is the conservative call; revisit
+# with a multi-rerun (not n=1) saas-only A/B before ever flipping it.
+
 
 def _register() -> None:
     from medusa.domains import register

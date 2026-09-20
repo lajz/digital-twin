@@ -210,12 +210,25 @@ def test_load_config_coerces_a_quoted_bool_in_passes(tmp_path):
 # --- collect_diff -----------------------------------------------------------------
 
 
+# Invoked from inside a `pre-push` hook, git sets GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE
+# for the *outer* repo; inherited by any subprocess (this fixture's own `git` calls, and
+# `collect_diff`'s internally), they'd redirect git away from the throwaway repo this
+# fixture creates. Strip them for the whole test via monkeypatch, not just `_git`.
+_GIT_REPO_ENV_KEYS = (
+    "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_CEILING_DIRECTORIES",
+    "GIT_PREFIX",
+)
+
+
 def _git(*args: str, cwd) -> None:
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True, text=True)
 
 
 @pytest.fixture
-def repo(tmp_path):
+def repo(tmp_path, monkeypatch):
+    for key in _GIT_REPO_ENV_KEYS:
+        monkeypatch.delenv(key, raising=False)
     root = tmp_path / "repo"
     root.mkdir()
     _git("init", "-q", "-b", "main", cwd=root)

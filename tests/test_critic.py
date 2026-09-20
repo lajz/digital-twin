@@ -94,6 +94,18 @@ def test_prompt_for_stance():
     assert set(critic.STANCES) == {"coach", "skeptic"}
 
 
+def test_resolve_enabled_domain_default():
+    assert critic.resolve_enabled(None, "real") is True
+    assert critic.resolve_enabled(None, "business") is False
+    assert critic.resolve_enabled(None, "synthetic") is False
+
+
+def test_resolve_enabled_explicit_forces_either_way():
+    assert critic.resolve_enabled(True, "business") is True
+    assert critic.resolve_enabled(True, "synthetic") is True
+    assert critic.resolve_enabled(False, "real") is False
+
+
 # --- through the loop -----------------------------------------------------------
 
 
@@ -174,6 +186,64 @@ def test_critic_every_gates_cadence(tmp_path):
     assert "Critic feedback" not in (rd / "iter_02" / "prompt.md").read_text()
 
 
+class _FakeDomain:
+    def __init__(self, kind):
+        self.kind = kind
+        self.constraints = ()
+
+
+def test_critic_defaults_on_for_real_domain(tmp_path, monkeypatch):
+    from medusa.agent import loop as loop_mod
+
+    monkeypatch.setattr(loop_mod, "_domain_for", lambda dataset: _FakeDomain("real"))
+    res = _run(tmp_path, max_iters=2, diversity_nudge_every=0)  # critic_enabled left at default
+    assert (res.run_dir / "iter_01" / "critic.md").exists()
+
+
+def test_critic_defaults_off_for_business_and_synthetic_domains(tmp_path, monkeypatch):
+    from medusa.agent import loop as loop_mod
+
+    for kind in ("business", "synthetic"):
+        monkeypatch.setattr(loop_mod, "_domain_for", lambda dataset, _k=kind: _FakeDomain(_k))
+        res = _run(tmp_path / kind, max_iters=2, diversity_nudge_every=0)
+        assert not list(res.run_dir.glob("iter_*/critic.md"))
+
+
+def test_critic_explicit_enabled_forces_on_for_business_domain(tmp_path, monkeypatch):
+    from medusa.agent import loop as loop_mod
+
+    monkeypatch.setattr(loop_mod, "_domain_for", lambda dataset: _FakeDomain("business"))
+    res = _run(tmp_path, max_iters=2, diversity_nudge_every=0, critic_enabled=True)
+    assert (res.run_dir / "iter_01" / "critic.md").exists()
+
+
+def test_critic_explicit_disabled_forces_off_for_real_domain(tmp_path, monkeypatch):
+    from medusa.agent import loop as loop_mod
+
+    monkeypatch.setattr(loop_mod, "_domain_for", lambda dataset: _FakeDomain("real"))
+    res = _run(tmp_path, max_iters=2, diversity_nudge_every=0, critic_enabled=False)
+    assert not list(res.run_dir.glob("iter_*/critic.md"))
+
+
+def test_cli_critic_flags_force_override():
+    from medusa.cli import _cfg_from_args, build_parser
+
+    parser = build_parser()
+    assert _cfg_from_args(parser.parse_args(["run"])).critic_enabled is None
+    assert _cfg_from_args(parser.parse_args(["run", "--critic"])).critic_enabled is True
+    assert _cfg_from_args(parser.parse_args(["run", "--no-critic"])).critic_enabled is False
+
+
+def test_registered_domain_kinds_match_critic_defaults():
+    """The domains that actually get the critic-on-by-default treatment: real data only.
+    (Cheap metadata check -- doesn't build ipb-ecoli, which needs the raw CSV / network.)"""
+    from medusa import domains
+
+    assert domains.get("ipb-ecoli").kind == "real"
+    assert domains.get("saas-seed").kind == "business"
+    assert domains.get("synthetic-ecoli-fast").kind == "synthetic"
+
+
 # --- pure scorecard -----------------------------------------------------------
 
 
@@ -211,7 +281,9 @@ def test_genome_can_toggle_and_evolve_critic():
     assert comp.touched == "critic_prompt"
     assert comp.apply(DEFAULT_LOOP_CONFIG).critic_prompt == "be a sharper coach"
 
-    assert seed_genome().apply(DEFAULT_LOOP_CONFIG).critic_enabled is False
+    # untouched -> knob absent from the genome -> the per-domain default applies (None),
+    # not a hardcoded off
+    assert seed_genome().apply(DEFAULT_LOOP_CONFIG).critic_enabled is None
     assert not seed_genome().child(component={"critic_prompt": "   "}).validates()[0]
     assert not seed_genome().child(component={"critic_prompt": "x" * 6001}).validates()[0]
 

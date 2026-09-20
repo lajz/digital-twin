@@ -29,9 +29,11 @@ You may NOT change the model, timeouts, runtime budgets, or token limits.
 
 One lever pairs up: `critic_enabled` / `critic_every` turn on an in-run critic that
 appends a short natural-language note to every Nth iteration's prompt, and `critic_prompt`
-is that critic's instructions. It costs extra tokens each time it fires (charged to the
-cost objective) -- enable it only if the reflection shows the loop plateauing or stuck on
-one model family.
+is that critic's instructions. It already defaults on for real-data domains and off for
+synthetic/business ones (a measured A/B, not a guess); touching `critic_enabled` FORCES it
+the other way for every domain in this run, so only do it if the reflection shows a
+specific domain plateauing or stuck on one family despite (or for lack of) its default.
+It costs extra tokens each time it fires (charged to the cost objective).
 
 ## Output format -- follow EXACTLY
 

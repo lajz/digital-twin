@@ -177,8 +177,9 @@ def run_loop(
     trace = (run_dir / "trace.jsonl").open("w")
 
     client = get_client(cfg, dry_run=dry_run, task_name=dataset.task.name)
-    critic_client = get_critic_client(cfg, dry_run=dry_run) if cfg.critic_enabled else None
     _dom = _domain_for(dataset)
+    critic_on = critic.resolve_enabled(cfg.critic_enabled, _dom.kind if _dom else "synthetic")
+    critic_client = get_critic_client(cfg, dry_run=dry_run) if critic_on else None
     constraint_names = [
         getattr(c, "__name__", "constraint") for c in (_dom.constraints if _dom else ())
     ]

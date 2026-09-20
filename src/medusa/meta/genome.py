@@ -33,6 +33,9 @@ KNOB_SPECS: dict[str, tuple] = {
     "plateau_patience": (2, 8, "int"),
     "max_iters": (6, 25, "int"),
     "thinking": (0, 1, "bool"),
+    # forces the critic on/off, overriding its per-domain default (see
+    # `critic.resolve_enabled`); untouched (the common case), the knob stays absent from
+    # `knobs` and the domain default applies -- see `_clamped_knobs`.
     "critic_enabled": (0, 1, "bool"),
     "critic_every": (1, 4, "int"),   # lo = 1 so cadence can't backdoor-disable the critic
 }
