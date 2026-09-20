@@ -204,19 +204,33 @@ SAAS_CONSTRAINTS = (
 # 2026-09-19 5-dataset A/B (`medusa bench --iters 8 --temperature 0.35`) found the coach
 # stance regressed saas-seed's combined holdout sMAPE (0.068 off -> 0.115 coach), well
 # past the ~0.016 honest-bar noise band measured on the *aggregate* multi-dataset score.
-# A same-day saas-seed-only reproduction (`--datasets saas-seed`, n=1 each) read the
-# critic.md notes and initially matched the hypothesis: each round it pushed a genuinely
-# different structural family (acquisition-lag -> sales-capacity -> two-stage hiring ->
-# hiring-rate cap -> price-realisation curve -> cost-residual reweighting) rather than
-# refining one, and the agent abandoned `funnel-conversion` mid-improvement (0.465 ->
-# 0.388 -> 0.332) to chase the critic's next idea. But the *critic-off* baseline run in
-# the same session was just as unstable on its own -- 4 families in 8 iterations, no
-# convergence, and a worse final score than the critic-on run -- so this domain's
-# family-hopping looks at least partly intrinsic to its already-flagged high run-to-run
-# variance, not purely critic-induced. That single ambiguous re-check isn't enough to
-# either confirm a fix or overturn the original (much less noisy) 5-dataset result, so no
-# prompt change was made here. Leaving the default off is the conservative call; revisit
-# with a multi-rerun (not n=1) saas-only A/B before ever flipping it.
+# An n=1 same-day saas-seed-only re-check read that as critic-caused family-hopping, but
+# noted the critic-off baseline in that same session was independently just as unstable
+# -- so it couldn't tell whether the critic caused the instability or just rode on top of
+# a domain that's unstable either way.
+#
+# A follow-up multi-replicate saas-seed-only A/B settled it (2026-09-19, `--iters 8
+# --temperature 0.35`, 5 reps/condition, response cache disabled per-rep so each is a
+# genuinely fresh trajectory, not a cache replay): the 5-dataset regression does NOT
+# replicate at the single-dataset level.
+#
+#   condition   mean best_holdout_smape (sd)   mean distinct families   mean valid_rate
+#   off         0.131  (sd 0.063)              3.2                      0.90
+#   coach       0.106  (sd 0.025)               3.0                     0.925
+#   skeptic     0.139  (sd 0.059)               3.2                     0.95
+#
+# Every pairwise mean gap (off-coach 0.025, off-skeptic 0.009, coach-skeptic 0.034) is
+# well under 1x the larger of the two conditions' own within-condition stdev -- run-to-
+# run noise on this one dataset dwarfs any critic effect. The "critic causes family-
+# hopping instability" hypothesis doesn't hold up either: mean distinct families explored
+# is essentially flat across conditions (coach explored *fewer* on average, not more).
+# saas-seed is just a high-variance target regardless of the critic (the off condition
+# alone ranged 0.077-0.228 holdout sMAPE across its 5 reps).
+#
+# Verdict: critic on/off is a wash on SaaS, not a proven regression -- but a wash isn't a
+# proven win either, so the default stays off: no measured benefit to justify the extra
+# LLM calls. Revisit only if some future prompt/config change gives the critic a clear,
+# replicated edge on this domain.
 
 
 def _register() -> None:

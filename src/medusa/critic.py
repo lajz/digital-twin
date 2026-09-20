@@ -60,9 +60,13 @@ def prompt_for_stance(name: str) -> str:
 # real-data-specific failure modes -- Monod-term unidentifiability, segmentation jitter
 # read as biology, missing lag phase -- that the base agent doesn't self-correct); on
 # synthetic bacterial data it made no measurable difference; on the synthetic SaaS domain
-# it regressed the (multi-dataset) result, for a reason that's still ambiguous on a
-# single-run SaaS-only re-check -- see the note by `domains.saas._register`. So the
-# default is per-domain, not global, and SaaS stays off pending a less noisy read.
+# it regressed the (multi-dataset) result. A follow-up multi-replicate saas-seed-only A/B
+# (5 reps/condition, response cache disabled) found that SaaS regression doesn't
+# replicate at the single-dataset level: critic-on vs critic-off differ by well under 1x
+# the within-condition run-to-run stdev there -- see the note by `domains.saas._register`
+# for the numbers. So the default stays per-domain, not global: "real" is a proven win;
+# "business" has no proven win (a wash, not a regression), so it stays off as the
+# conservative no-extra-cost-for-no-benefit default.
 DEFAULT_ON_KINDS = frozenset({"real"})
 
 
