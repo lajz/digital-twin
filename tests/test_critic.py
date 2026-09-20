@@ -9,6 +9,7 @@ from medusa import critic
 from medusa.config import DEFAULT_LOOP_CONFIG, PRICE_PER_MTOK_IN, PRICE_PER_MTOK_OUT
 from medusa.data import build
 from medusa.harness.scorecard import loop_scorecard
+from medusa.meta import prompts as mp
 from medusa.meta.genome import clamp_knob, seed_genome
 
 
@@ -291,3 +292,40 @@ def test_genome_can_toggle_and_evolve_critic():
 def test_critic_every_lo_is_one():
     assert clamp_knob("critic_every", 0) == 1
     assert clamp_knob("critic_every", 99) == 4
+
+
+def test_parse_proposal_handles_stance_enum_knob():
+    text = "TOUCHED: critic_stance\nWHY: ipb-ecoli A/B favors skeptic\nKNOB: skeptic"
+    assert mp.parse_proposal(text) == {
+        "touched": "critic_stance",
+        "rationale": "ipb-ecoli A/B favors skeptic",
+        "knob": {"critic_stance": "skeptic"},
+    }
+
+
+def test_parse_proposal_rejects_unknown_stance_value():
+    text = "TOUCHED: critic_stance\nWHY: x\nKNOB: cynic"
+    assert mp.parse_proposal(text) is None
+
+
+def test_stance_knob_changes_effective_critic_prompt_through_a_run(tmp_path):
+    from medusa.agent.loop import run_loop
+
+    child = seed_genome().child(knob={"critic_stance": "skeptic"})
+    cfg = child.apply(DEFAULT_LOOP_CONFIG)
+    assert cfg.critic_stance == "skeptic"
+    assert cfg.critic_prompt == critic.SKEPTIC_PROMPT
+
+    cfg = dataclasses.replace(cfg, critic_enabled=True, critic_every=1, max_iters=2,
+                              diversity_nudge_every=0)
+    ds = build.build_synthetic(
+        "synthetic-ecoli-fast",
+        processed_dir=tmp_path / "processed",
+        datasheet_path=tmp_path / "processed" / "datasheet.md",
+    )
+    res = run_loop(ds, cfg, dry_run=True, runs_dir=tmp_path / "runs",
+                    processed_dir=tmp_path / "processed")
+
+    critic_md = (res.run_dir / "iter_01" / "critic.md").read_text()
+    assert critic.SKEPTIC_PROMPT.strip() in critic_md
+    assert "Critic feedback (skeptic)" in (res.run_dir / "iter_02" / "prompt.md").read_text()

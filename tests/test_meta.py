@@ -3,9 +3,10 @@ import json
 import numpy as np
 import pytest
 
+from medusa import critic
 from medusa.config import DEFAULT_LOOP_CONFIG
 from medusa.meta.archive import GenomeScore, MetaArchive, GenomeEntry
-from medusa.meta.genome import KNOB_SPECS, Genome, clamp_knob, seed_genome
+from medusa.meta.genome import ENUM_SPECS, KNOB_SPECS, Genome, clamp_knob, seed_genome
 
 
 def test_genome_apply_and_roundtrip():
@@ -27,6 +28,42 @@ def test_knob_clamping():
     assert clamp_knob("min_families", 1) == 2
     assert clamp_knob("thinking", 1) is True
     assert isinstance(clamp_knob("temperature", 0.5), float)
+
+
+def test_critic_stance_is_an_enum_knob_not_a_numeric_range():
+    assert "critic_stance" not in KNOB_SPECS
+    assert ENUM_SPECS["critic_stance"] == ("coach", "skeptic")
+    assert clamp_knob("critic_stance", "skeptic") == "skeptic"
+    assert clamp_knob("critic_stance", "cynic") == "coach"  # invalid -> falls back
+
+
+def test_genome_critic_stance_roundtrip_and_syncs_prompt():
+    g = seed_genome().child(
+        knob={"critic_stance": "skeptic"}, rationale="ipb-ecoli A/B favors skeptic",
+        generation=1,
+    )
+    assert g.touched == "critic_stance"
+    ok, msg = g.validates()
+    assert ok, msg
+
+    cfg = g.apply(DEFAULT_LOOP_CONFIG)
+    assert cfg.critic_stance == "skeptic"
+    assert cfg.critic_prompt == critic.SKEPTIC_PROMPT  # prompt follows the stance switch
+
+    back = Genome.from_dict(json.loads(json.dumps(g.to_dict())))
+    assert back.knobs["critic_stance"] == "skeptic"
+    back_cfg = back.apply(DEFAULT_LOOP_CONFIG)
+    assert back_cfg.critic_stance == "skeptic"
+    assert back_cfg.critic_prompt == critic.SKEPTIC_PROMPT
+    assert back.genome_id == g.genome_id
+
+
+def test_genome_stance_switch_defers_to_an_explicit_critic_prompt_edit():
+    # a single child() call that sets both -- the explicit component wins, not the sync
+    g = seed_genome().child(
+        knob={"critic_stance": "skeptic"}, component={"critic_prompt": "custom text"},
+    )
+    assert g.apply(DEFAULT_LOOP_CONFIG).critic_prompt == "custom text"
 
 
 def test_genome_rejects_bad_components():

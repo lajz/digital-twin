@@ -7,13 +7,14 @@ loop then does across a benchmark suite of domains. Reflective Pareto evolution
 proposal; an archive keeps a Pareto front, not just the best.
 """
 
-from medusa.meta.genome import COMPONENT_FIELDS, KNOB_SPECS, Genome
+from medusa.meta.genome import COMPONENT_FIELDS, ENUM_SPECS, KNOB_SPECS, Genome
 from medusa.meta.archive import GenomeEntry, GenomeScore, MetaArchive
 
 __all__ = [
     "Genome",
     "COMPONENT_FIELDS",
     "KNOB_SPECS",
+    "ENUM_SPECS",
     "GenomeScore",
     "GenomeEntry",
     "MetaArchive",
