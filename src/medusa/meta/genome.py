@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 
+from medusa import critic
 from medusa.config import LoopConfig
 
 # Textual components. One generation rewrites at most one of these.
@@ -40,12 +41,27 @@ KNOB_SPECS: dict[str, tuple] = {
     "critic_every": (1, 4, "int"),   # lo = 1 so cadence can't backdoor-disable the critic
 }
 
+# Categorical knobs -> tuple of allowed values. Kept out of `KNOB_SPECS` because its
+# `(lo, hi, kind)` shape is a numeric range, and a stance has no ordering to clamp into.
+# Touching `critic_stance` also re-seeds the `critic_prompt` component to match (see
+# `Genome.child`) -- a stance switch with no prompt change would be a no-op in practice.
+ENUM_SPECS: dict[str, tuple[str, ...]] = {
+    "critic_stance": critic.STANCES,  # ("coach", "skeptic")
+}
+
 # the iteration template must keep these slots or render_iteration loses the data
 _REQUIRED_TEMPLATE_SLOTS = {"obs_table", "archive_summary", "previous_section"}
 _CODE_BLOCK = re.compile(r"```(?:python)?\s*\n(.*?)```", re.DOTALL)
 
 
-def clamp_knob(name: str, value) -> float | int | bool:
+def is_knob(name: str) -> bool:
+    return name in KNOB_SPECS or name in ENUM_SPECS
+
+
+def clamp_knob(name: str, value) -> float | int | bool | str:
+    if name in ENUM_SPECS:
+        choices = ENUM_SPECS[name]
+        return value if value in choices else choices[0]
     lo, hi, kind = KNOB_SPECS[name]
     if kind == "bool":
         return bool(value)
@@ -70,7 +86,7 @@ class Genome:
         return hashlib.sha256(blob.encode()).hexdigest()[:10]
 
     def _clamped_knobs(self) -> dict:
-        return {k: clamp_knob(k, v) for k, v in self.knobs.items() if k in KNOB_SPECS}
+        return {k: clamp_knob(k, v) for k, v in self.knobs.items() if is_knob(k)}
 
     # ---- apply / round-trip -------------------------------------------------
 
@@ -89,9 +105,15 @@ class Genome:
                 comps[name] = text
                 touched = name
         for name, val in (knob or {}).items():
-            if name in KNOB_SPECS:
-                knobs[name] = clamp_knob(name, val)
+            if is_knob(name):
+                val = clamp_knob(name, val)
+                knobs[name] = val
                 touched = name
+                # a stance switch with no matching prompt is a no-op in practice -- re-seed
+                # critic_prompt to the stance's canned text unless this same call already
+                # sets it explicitly.
+                if name == "critic_stance" and "critic_prompt" not in (component or {}):
+                    comps["critic_prompt"] = critic.prompt_for_stance(val)
         return Genome(comps, knobs, parent_id=self.genome_id, generation=generation,
                       rationale=rationale, touched=touched)
 
@@ -121,7 +143,7 @@ class Genome:
             if name not in COMPONENT_FIELDS:
                 return False, f"unknown component {name!r}"
         for name in self.knobs:
-            if name not in KNOB_SPECS:
+            if not is_knob(name):
                 return False, f"unknown knob {name!r}"
 
         tmpl = self.components.get("iteration_template")

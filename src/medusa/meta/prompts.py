@@ -7,7 +7,7 @@ import re
 import textwrap
 
 from medusa.config import LoopConfig
-from medusa.meta.genome import COMPONENT_FIELDS, KNOB_SPECS, Genome
+from medusa.meta.genome import COMPONENT_FIELDS, ENUM_SPECS, KNOB_SPECS, Genome
 
 META_SYSTEM_PROMPT = """\
 You tune `medusa`, a feedback loop that writes mechanistic digital twins. Each inner run:
@@ -35,13 +35,23 @@ the other way for every domain in this run, so only do it if the reflection show
 specific domain plateauing or stuck on one family despite (or for lack of) its default.
 It costs extra tokens each time it fires (charged to the cost objective).
 
+Separately, `critic_stance` (coach | skeptic) picks which of two canned system prompts the
+critic runs with -- a ships-coach that suggests the next mechanism, or a skeptic that
+red-teams the twin's stated assumptions. A same-day A/B on `ipb-ecoli` (real E. coli data,
+critic already on) found the stance is not interchangeable: coach -> holdout sMAPE 0.065,
+skeptic -> 0.043, both far below critic-off's 0.283 -- the skeptic caught a segmentation-
+pipeline artifact (detection efficiency improving as cells separate) that the coach's
+next-mechanism framing structurally can't flag. Touching this knob re-seeds `critic_prompt`
+to the chosen stance's canned text, so don't touch both `critic_stance` and `critic_prompt`
+in the same generation -- the stance change would just be overwritten right back.
+
 ## Output format -- follow EXACTLY
 
 Line 1:  `TOUCHED: <component-or-knob name>`
 Line 2:  `WHY: <2-3 sentences tying this to the reflection>`
 
 Then, for a **knob**:
-`KNOB: <number or true/false>`
+`KNOB: <number, true/false, or the stance name for critic_stance>`
 
 For a **component**, a SURGICAL find/replace using these exact sentinel lines (NOT code
 fences -- the content may itself contain ``` ):
@@ -118,6 +128,9 @@ def knob_menu(base: LoopConfig, genome: Genome) -> str:
     for name, (lo, hi, kind) in KNOB_SPECS.items():
         cur = genome._clamped_knobs().get(name, getattr(base, name))
         out.append(f"- `{name}` = {cur}  (allowed {lo}..{hi}, {kind})")
+    for name, choices in ENUM_SPECS.items():
+        cur = genome._clamped_knobs().get(name, getattr(base, name))
+        out.append(f"- `{name}` = {cur}  (allowed {'|'.join(choices)}, enum)")
     return "\n".join(out)
 
 
@@ -152,6 +165,12 @@ def parse_proposal(text: str) -> dict | None:
         raw = m_knob.group(1)
         val = raw.lower() == "true" if raw.lower() in ("true", "false") else float(raw)
         return {"touched": touched, "rationale": why, "knob": {touched: val}}
+
+    if touched in ENUM_SPECS:
+        m_knob = re.search(r"KNOB:\s*([A-Za-z_]+)", text)
+        if not m_knob or m_knob.group(1) not in ENUM_SPECS[touched]:
+            return None
+        return {"touched": touched, "rationale": why, "knob": {touched: m_knob.group(1)}}
 
     # component: a surgical FIND / REPLACE using sentinel lines (robust to ``` in content)
     fr = re.search(
