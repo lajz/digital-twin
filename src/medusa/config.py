@@ -108,6 +108,13 @@ class LoopConfig:
     # spatial (L2) tasks: agent-based rollouts are stochastic + slower
     spatial_candidate_timeout_s: float = 150.0
     spatial_runtime_budget_s: float = 90.0
+    # predator-prey: the critic's own best mechanistic suggestion (a delay-differential
+    # recruitment term, dL/dt = delta*H(t-tau)*L - gamma*L) is markedly more expensive to
+    # integrate than this project's other (delay-free) series domains. Measured: a valid,
+    # non-crashing stage-lag candidate ran consistently at ~9.5s against the 5s base
+    # budget (see PR description for the smoke-test numbers).
+    candidate_timeout_predator_prey_s: float = 60.0
+    twin_runtime_budget_predator_prey: float = 20.0
 
     def system_prompt_for(self, task_name: str) -> str:
         return {
@@ -118,7 +125,16 @@ class LoopConfig:
         }.get(task_name, self.system_prompt)
 
     def runtime_budget_for(self, task_name: str) -> float:
-        return self.spatial_runtime_budget_s if task_name == "spatial" else self.twin_runtime_budget_s
+        return {
+            "spatial": self.spatial_runtime_budget_s,
+            "predator-prey": self.twin_runtime_budget_predator_prey,
+        }.get(task_name, self.twin_runtime_budget_s)
+
+    def candidate_timeout_for(self, task_name: str) -> float:
+        return {
+            "spatial": self.spatial_candidate_timeout_s,
+            "predator-prey": self.candidate_timeout_predator_prey_s,
+        }.get(task_name, self.candidate_timeout_s)
 
     def to_json(self) -> str:
         return json.dumps(dataclasses.asdict(self), indent=2, sort_keys=True)

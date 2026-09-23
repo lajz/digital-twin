@@ -171,7 +171,7 @@ def _eval_series(twin, dataset: Dataset, cfg: LoopConfig, res: EvalResult) -> No
         _call_predict(twin, params, full.time_s, exog_full), full.time_s
     )
     res.runtime_s = time.perf_counter() - t0
-    res.over_budget = res.runtime_s > cfg.twin_runtime_budget_s
+    res.over_budget = res.runtime_s > cfg.runtime_budget_for(task.name)
 
     param_check = check_twin_object(twin, params=params, required_methods=task.required_methods)
     res.params = params
