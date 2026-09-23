@@ -13,9 +13,8 @@ from __future__ import annotations
 from medusa import prompts
 from medusa.contract.interface import Task
 from medusa.data import fetch
+from medusa.data.fetch import YEAR_S  # single definition, shared with build_lynx_hare
 from medusa.domains.base import Domain
-
-YEAR_S = 365.25 * 86400.0  # Julian year, in seconds
 
 PREDATOR_PREY_TASK = Task(
     name="predator-prey",
