@@ -283,6 +283,112 @@ def build_ipb_ecoli_spatial(
     )
 
 
+# --- a concrete real dataset: Hudson's Bay Co. lynx-hare pelt counts (predator-prey) --
+
+LYNX_HARE_CSV = (
+    "https://raw.githubusercontent.com/stan-dev/example-models/master/knitr/"
+    "lotka-volterra/hudson-bay-lynx-hare.csv"
+)
+LYNX_HARE_RAW = "hudson_bay_lynx_hare.csv"
+YEAR_S = 365.25 * 86400.0  # Julian year, in seconds
+
+LYNX_HARE_DATASHEET = """\
+# Datasheet: lynx-hare
+
+- **Source:** Hudson's Bay Company snowshoe hare / Canada lynx pelt-trading counts,
+  1900-1920 -- the classic series that motivated the Lotka-Volterra predator-prey
+  equations. This 21-point series is the one the Stan development team curates for
+  their own Lotka-Volterra case study (Bob Carpenter, "Predator-Prey Population
+  Dynamics: the Lotka-Volterra Model in Stan", mc-stan.org/learn-stan/case-studies/
+  lotka-volterra-predator-prey.html; data file: github.com/stan-dev/example-models,
+  knitr/lotka-volterra/hudson-bay-lynx-hare.csv). That file's own header attributes it
+  to http://www.math.tamu.edu/~phoward/m442/modbasics.pdf (P. Howard, "Modeling
+  Basics", Texas A&M lecture notes), downloaded 15 Oct 2017 -- this dataset circulates
+  in the ecology/applied-math literature without one single canonical primary
+  citation; several textbooks (including Howard's) reproduce the same 21 numbers.
+- **Units:** counts are in **thousands of pelts traded per year** -- a proxy for
+  population, not a census. Trapping effort, fur prices, and reporting practices all
+  confound the pelt count vs. the true population; treat this as a noisy indirect
+  observable, the same caveat `ipb-ecoli`'s datasheet makes about its automated cell
+  count not being a manual ground truth.
+- **Years:** 1900-1920 inclusive, one point per year (21 points total). Small by the
+  standards of this project's other datasets (~12 fit / ~9 holdout at fit_frac=0.6) --
+  don't be surprised by noisy holdout scores. A longer 1845-1935 series exists
+  (`ecostudy` R package, `lynxhare` dataset, Stevens 2009, "A Primer of Ecology with
+  R") but was not used here; documenting the choice per the task brief.
+- **Scored channels:** `hare` (prey) and `lynx` (predator), both thousands of pelts.
+  No exogenous levers -- unlike `saas-seed`, nothing is handed to the twin beyond the
+  two time series; the whole point is two mutually-driven populations with no
+  external forcing.
+- **Shape:** oscillatory, non-monotonic -- hare and lynx both rise, peak, crash, and
+  recover on a roughly 9-10 year cycle, with the lynx peak lagging the hare peak by a
+  year or two (predators multiply only once prey is abundant, then overshoot and crash
+  it). No lag phase, no saturation, no accounting identity -- structurally unlike every
+  other domain in this project.
+- **Plausibility:** intentionally left empty (`PREDATOR_PREY_TASK.plausibility == {}`).
+  The harness's plausibility scorer (`harness/evaluate.py::_finish_metrics`) only knows
+  how to check a fixed set of hardcoded derived quantities (an implied exponential
+  doubling time, mean cell length, ARPA, monthly churn) -- none of which has a
+  Lotka-Volterra analog, and an "implied doubling time" isn't even a coherent concept
+  for a series that goes up AND down. Wiring in a genuine LV-parameter plausibility
+  check would mean extending the harness itself -- out of scope for this
+  generalization probe. For reference only (NOT enforced as a score gate): fitting
+  this series with Stan's own Lotka-Volterra model
+  (`dH/dt = (alpha - beta*L)*H`, `dL/dt = (-gamma + delta*H)*L`), the posterior means
+  are alpha~=0.55/yr, beta~=0.028/(yr*'000 pelts), gamma~=0.80/yr,
+  delta~=0.024/(yr*'000 pelts) (Carpenter's case study; closely matches Howard's
+  independent point estimates alpha*=0.55, beta*=0.028, gamma*=0.84, delta*=0.026).
+  These numbers inform the PARAMS prior ranges suggested in the system prompt, but
+  are not checked by the harness.
+"""
+
+
+def fetch_lynx_hare(dest_dir: Path | None = None) -> Path:
+    """Download the Hudson's Bay Company lynx/hare pelt-count series."""
+    import urllib.request
+
+    dest_dir = dest_dir or config.RAW_DIR
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / LYNX_HARE_RAW
+    if not dest.exists():
+        urllib.request.urlretrieve(LYNX_HARE_CSV, dest)  # noqa: S310 - fixed https URL
+    return dest
+
+
+def build_lynx_hare(*, fit_frac: float = 0.6, **kw) -> build.Dataset:
+    from medusa.domains.predator_prey import PREDATOR_PREY_TASK
+
+    csv_path = config.RAW_DIR / LYNX_HARE_RAW
+    if not csv_path.exists():
+        csv_path = fetch_lynx_hare()
+
+    df = pd.read_csv(csv_path, comment="#")
+    df.columns = [c.strip() for c in df.columns]
+    df = df.sort_values("Year")
+    years = df["Year"].to_numpy(dtype=float)
+    hare = df["Hare"].to_numpy(dtype=float)
+    lynx = df["Lynx"].to_numpy(dtype=float)
+    time_s = (years - years[0]) * YEAR_S
+
+    # population_count is a mandatory field on Observations regardless of what's
+    # scored (contract/interface.py); duplicate hare into it and into extra, exactly
+    # how saas.py's generate() duplicates `customers` into both slots.
+    obs = Observations(
+        time_s=time_s, population_count=hare, extra={"hare": hare, "lynx": lynx},
+    )
+    ground_truth = {
+        "lv_params_ref_not_enforced": {
+            "alpha_per_yr": 0.55, "beta_per_yr_kpelt": 0.028,
+            "gamma_per_yr": 0.80, "delta_per_yr_kpelt": 0.024,
+        },
+        "note": "Stan case-study posterior means (Carpenter); reference only, see datasheet",
+    }
+    return build.write(
+        obs, LYNX_HARE_DATASHEET, name="lynx-hare", ground_truth=ground_truth,
+        fit_frac=fit_frac, task=PREDATOR_PREY_TASK, **kw,
+    )
+
+
 def print_instructions() -> None:
     print(INSTRUCTIONS)
     raw = config.RAW_DIR

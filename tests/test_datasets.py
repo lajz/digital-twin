@@ -7,7 +7,9 @@ def test_registry_lists_synthetic_and_real():
     names = datasets.list_datasets()
     assert "synthetic-ecoli-fast" in names
     assert "ipb-ecoli" in names
+    assert "lynx-hare" in names
     assert datasets.is_real("ipb-ecoli")
+    assert datasets.is_real("lynx-hare")
     assert not datasets.is_real("synthetic-ecoli-fast")
 
 

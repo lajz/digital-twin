@@ -272,6 +272,92 @@ class Twin:
   - marketing_spend`; `cash` is the running total plus `capital_raised`.
 """
 
+PREDATOR_PREY_SYSTEM_PROMPT = """\
+You are a population-ecology modeller. Write `twin.py`: a *digital twin* of two
+interacting wild populations -- predator and prey -- co-evolving through birth, death,
+and predation, plus the calibration code.
+
+Rules: ONE fenced ```python block, stdlib + numpy + scipy only, mechanistic parameters
+with units and priors, deterministic `predict`, runs in under {twin_runtime_budget_s} s.
+You see a FIT window (early years) only; later years score your forecast.
+
+## What you are scored on
+
+`predict(params, time_s)` returns a **dict** of arrays (one value per year):
+
+    {
+      "hare": ...,   # prey: snowshoe hare, thousands of pelts traded (a noisy proxy
+                      # for population, not a direct census)
+      "lynx": ...,   # predator: Canada lynx, thousands of pelts traded
+    }
+
+Missing keys score as maximum error. The combined score is a weighted sMAPE over these
+two channels, weighted equally -- sMAPE is already scale-invariant (a % error), so
+neither population dominates the score just by having a larger raw count.
+
+`time_s` is seconds; one period is a year (31557600 s = 365.25 days). Convert.
+
+## The shape of the data
+
+Both series oscillate: rise, peak, crash, recover, on a roughly decade-long cycle. The
+lynx peak lags the hare peak by a year or two -- predators multiply only once prey is
+abundant, then overshoot and crash the prey population, then starve back down
+themselves. A model that only grows or only saturates (the single-population-growth
+families used elsewhere in this project) CANNOT reproduce this -- you need genuine
+two-way coupling: hare growth must depend on lynx abundance, and lynx growth must
+depend on hare abundance.
+
+## Interface
+
+```python
+import numpy as np
+
+class Twin:
+    FAMILY = "lotka-volterra"   # or "rosenzweig-macarthur" (saturating predation),
+                                 # "lv-logistic-prey" (prey has its own carrying
+                                 # capacity), or another genuinely coupled family
+    PARAMS = {
+        "hare0": (1.0, 200.0, "'000 pelts"),          # initial prey level
+        "lynx0": (1.0, 200.0, "'000 pelts"),          # initial predator level
+        "alpha": (0.05, 3.0, "1/yr"),                 # prey intrinsic growth rate
+        "beta":  (0.001, 0.5, "1/(yr*'000 pelts)"),   # predation rate
+        "gamma": (0.05, 3.0, "1/yr"),                 # predator death rate
+        "delta": (0.001, 0.5, "1/(yr*'000 pelts)"),   # predator conversion efficiency
+    }
+    METADATA = {
+        "assumptions": ["well-mixed populations", "no external forcing", "..."],
+        "state_vars": ["hare", "lynx"],
+        "refs": ["Lotka 1925", "Volterra 1926", "..."],
+    }
+
+    def fit(self, obs) -> dict:
+        # obs.time_s, obs.hare, obs.lynx -- np.ndarray over the fit window
+        ...
+
+    def predict(self, params: dict, time_s: np.ndarray) -> dict[str, np.ndarray]:
+        ...
+```
+
+## Mechanistic approaches that fit here
+
+- **Classical Lotka-Volterra** (the archetype -- also the model this exact dataset
+  originally motivated): `dH/dt = alpha*H - beta*H*L`, `dL/dt = -gamma*L + delta*H*L`.
+  Integrate with `scipy.integrate.solve_ivp`. Unbounded prey growth in the absence of
+  predators is a known weakness of the raw model -- fine as a first family, but
+  consider fixing it (below) if the fit struggles.
+- **Rosenzweig-MacArthur**: adds a saturating (Holling type II) predation response
+  `beta*H/(1+h*H)`, damping the raw LV model's tendency toward ever-widening cycles.
+- **Prey logistic growth**: replace `alpha*H` with `alpha*H*(1 - H/K)` so prey
+  self-limits even without predators.
+- Whatever family you pick, it must be a genuinely COUPLED system -- each species'
+  growth rate a function of the other's abundance -- not two independently-fit curves,
+  which cannot reproduce the phase-lagged cycle structure above.
+- Fit by integrating the ODE at trial parameters and minimizing residuals against the
+  fit-window data (`scipy.optimize.least_squares` around a `solve_ivp` call, e.g. in
+  log space since both channels span roughly an order of magnitude); or explore
+  several random initial guesses to avoid a bad local optimum.
+"""
+
 ITERATION_TEMPLATE = """\
 ## Dataset
 

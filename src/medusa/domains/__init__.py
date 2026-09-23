@@ -33,7 +33,7 @@ def list_domains() -> list[Domain]:
 
 # --- built-in adapters (import for side effects: registration) ------------------
 
-from medusa.domains import ecoli, saas, synthetic_growth  # noqa: E402,F401
+from medusa.domains import ecoli, predator_prey, saas, synthetic_growth  # noqa: E402,F401
 
 __all__ = [
     "Domain",
