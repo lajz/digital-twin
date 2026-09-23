@@ -110,9 +110,10 @@ class LoopConfig:
     spatial_runtime_budget_s: float = 90.0
     # predator-prey: the critic's own best mechanistic suggestion (a delay-differential
     # recruitment term, dL/dt = delta*H(t-tau)*L - gamma*L) is markedly more expensive to
-    # integrate than this project's other (delay-free) series domains. Measured: a valid,
-    # non-crashing stage-lag candidate ran consistently at ~9.5s against the 5s base
-    # budget (see PR description for the smoke-test numbers).
+    # integrate than this project's other (delay-free) series domains. Measured across two
+    # `medusa run --dataset lynx-hare --iters 6` smoke tests: a valid, non-crashing
+    # stage-lag candidate ran consistently at ~9.5s (9.498s, 9.576s) against the 5s base
+    # budget -- ~2x headroom over that on the soft budget, ~3x on the hard timeout.
     candidate_timeout_predator_prey_s: float = 60.0
     twin_runtime_budget_predator_prey: float = 20.0
 

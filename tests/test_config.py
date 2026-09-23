@@ -54,3 +54,22 @@ def test_run_candidate_uses_predator_prey_timeout(tmp_path, monkeypatch):
     sandbox.run_candidate("class Twin: pass", DEFAULT_LOOP_CONFIG, processed_dir=processed_dir)
 
     assert captured["timeout"] == DEFAULT_LOOP_CONFIG.candidate_timeout_predator_prey_s
+
+
+def test_run_candidate_falls_back_to_base_timeout_when_dataset_load_fails(monkeypatch):
+    def fake_load(*, processed_dir):
+        raise FileNotFoundError("no dataset here")
+
+    monkeypatch.setattr(sandbox.build, "load", fake_load)
+
+    captured = {}
+
+    def fake_run(args, **kwargs):
+        captured["timeout"] = kwargs.get("timeout")
+        return subprocess.CompletedProcess(args, 0, stdout='{"crashed": true}\n', stderr="")
+
+    monkeypatch.setattr(sandbox.subprocess, "run", fake_run)
+
+    sandbox.run_candidate("class Twin: pass", DEFAULT_LOOP_CONFIG, processed_dir=config.PROCESSED_DIR)
+
+    assert captured["timeout"] == DEFAULT_LOOP_CONFIG.candidate_timeout_s
