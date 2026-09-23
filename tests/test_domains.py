@@ -13,7 +13,8 @@ from medusa.harness.evaluate import evaluate_source
 
 def test_registry_has_builtin_domains():
     names = {d.name for d in domains.list_domains()}
-    assert {"saas-seed", "ipb-ecoli", "ipb-ecoli-spatial", "synthetic-ecoli-fast"} <= names
+    assert {"saas-seed", "ipb-ecoli", "ipb-ecoli-spatial", "synthetic-ecoli-fast",
+            "lynx-hare"} <= names
     saas = domains.get("saas-seed")
     assert saas.kind == "business" and saas.constraints
 
@@ -21,6 +22,19 @@ def test_registry_has_builtin_domains():
 def test_datasets_registry_delegates_to_domains():
     assert "saas-seed" in datasets.list_datasets()
     assert datasets.is_real("saas-seed")  # business counts as non-synthetic
+
+
+def test_lynx_hare_domain_is_registered_real_with_two_way_task():
+    dom = domains.get("lynx-hare")
+    assert dom is not None
+    assert dom.kind == "real"
+    task = dom.task
+    assert task.name == "predator-prey"
+    assert set(task.observables) == {"hare", "lynx"}
+    assert task.mode == "series"
+    assert task.exogenous == ()
+    assert task.period_label == "yr"
+    assert datasets.is_real("lynx-hare")
 
 
 @pytest.fixture

@@ -80,10 +80,16 @@ def cmd_domains(args: argparse.Namespace) -> int:
 
 
 def cmd_fetch(args: argparse.Namespace) -> int:
-    if getattr(args, "dataset", None) == "ipb-ecoli":
+    name = getattr(args, "dataset", None)
+    if name == "ipb-ecoli":
         path = fetch.fetch_ipb_ecoli()
         print(f"downloaded: {path}")
         print("now: uv run medusa build --dataset ipb-ecoli")
+        return 0
+    if name == "lynx-hare":
+        path = fetch.fetch_lynx_hare()
+        print(f"downloaded: {path}")
+        print("now: uv run medusa build --dataset lynx-hare")
         return 0
     fetch.print_instructions()
     return 0

@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
 
-from medusa.data import build, synthetic
+from medusa import config
+from medusa.data import build, fetch, synthetic
 from medusa.data.build import make_split, split_observations
 
 
@@ -42,3 +43,40 @@ def test_synthetic_growth_is_monotone_ish_and_saturates():
     late = obs.population_count[-5:].mean()
     preset = synthetic.PRESETS["synthetic-bsub-mid"]
     assert late > 0.5 * preset.carrying_capacity
+
+
+def test_build_lynx_hare_from_a_local_fixture_csv(tmp_path, monkeypatch):
+    # a small fixture standing in for the real (network-fetched) CSV, same header
+    # shape (comment lines + leading-space column names) as the real Stan file.
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    (raw_dir / fetch.LYNX_HARE_RAW).write_text(
+        "# Data from http://www.math.tamu.edu/~phoward/m442/modbasics.pdf\n"
+        "# Downloaded 15 October 2017\n"
+        "Year, Lynx, Hare\n"
+        "1900, 4.0, 30.0\n"
+        "1901, 6.1, 47.2\n"
+        "1902, 9.8, 70.2\n"
+        "1903, 35.2, 77.4\n"
+        "1904, 59.4, 36.3\n"
+        "1905, 41.7, 20.6\n"
+        "1906, 19.0, 18.1\n"
+    )
+    monkeypatch.setattr(config, "RAW_DIR", raw_dir)
+
+    ds = fetch.build_lynx_hare(
+        fit_frac=0.6, processed_dir=tmp_path / "processed", datasheet_path=tmp_path / "d.md",
+    )
+
+    assert ds.name == "lynx-hare"
+    assert ds.task.name == "predator-prey"
+    assert len(ds.observations) == 7
+    assert ds.split["n_fit"] == 4 and ds.split["n_holdout"] == 3
+    assert ds.observations.time_s[0] == 0.0
+    np.testing.assert_allclose(ds.observations.population_count, ds.observations.hare)
+    np.testing.assert_allclose(
+        ds.observations.hare, [30.0, 47.2, 70.2, 77.4, 36.3, 20.6, 18.1]
+    )
+    np.testing.assert_allclose(
+        ds.observations.lynx, [4.0, 6.1, 9.8, 35.2, 59.4, 41.7, 19.0]
+    )

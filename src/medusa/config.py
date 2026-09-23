@@ -77,6 +77,7 @@ class LoopConfig:
     system_prompt_structured: str = prompts.STRUCTURED_SYSTEM_PROMPT
     system_prompt_spatial: str = prompts.SPATIAL_SYSTEM_PROMPT
     system_prompt_saas: str = prompts.SAAS_SYSTEM_PROMPT
+    system_prompt_predator_prey: str = prompts.PREDATOR_PREY_SYSTEM_PROMPT
     # set to override the domain's own system prompt (the meta-loop's hook)
     system_prompt_override: str | None = None
     iteration_template: str = prompts.ITERATION_TEMPLATE
@@ -113,6 +114,7 @@ class LoopConfig:
             "structured": self.system_prompt_structured,
             "spatial": self.system_prompt_spatial,
             "saas": self.system_prompt_saas,
+            "predator-prey": self.system_prompt_predator_prey,
         }.get(task_name, self.system_prompt)
 
     def runtime_budget_for(self, task_name: str) -> float:

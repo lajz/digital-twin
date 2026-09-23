@@ -9,7 +9,7 @@ from pathlib import Path
 
 from medusa.data import build, fetch, synthetic
 
-REAL_DATASETS = ("ipb-ecoli", "ipb-ecoli-structured", "ipb-ecoli-spatial")
+REAL_DATASETS = ("ipb-ecoli", "ipb-ecoli-structured", "ipb-ecoli-spatial", "lynx-hare")
 
 
 def list_datasets() -> list[str]:
