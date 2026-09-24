@@ -27,10 +27,10 @@ def run_candidate(
     processed_dir = processed_dir or config.PROCESSED_DIR
 
     try:
-        spatial = build.load(processed_dir=processed_dir).task.mode == "spatial"
+        task_name = build.load(processed_dir=processed_dir).task.name
     except Exception:
-        spatial = False
-    timeout_s = cfg.spatial_candidate_timeout_s if spatial else cfg.candidate_timeout_s
+        task_name = ""
+    timeout_s = cfg.candidate_timeout_for(task_name)
 
     with tempfile.TemporaryDirectory(prefix="medusa-cand-") as tmp:
         tmp_path = Path(tmp)
